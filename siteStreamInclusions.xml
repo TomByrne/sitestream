@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Object xmlns:s="http://www.tbyrne.org/sitestream"
+		
+		xmlns:package1="com.package1.*"
+		xmlns:package2="com.package2.*"
+		
+		xmlns:geom="flash.geom.*"
+		xmlns:display="flash.display.*"
+		
+		literalObject1="{test:13}"
+		>
+	<!-- the root node does not need a path, this keeps references shorter -->
+	
+	<!-- SiteStream information now lives within the attributes tagged with the SiteStream namespace
+		(in this case 's'). These are:
+		- s:id = the property name within the parent object
+		- s:path = the SiteStream path name for this object (which creates a SiteStream node behind the scenes)
+		- s:lib = the SWF url from which this object's class gets loaded.
+		- s:url = the XML url from which the object's full content gets loaded. -->
+	
+	<Object s:id="libs" s:path="libs"
+		swf1="swfs/external1.swf"
+		swf2="swfs/external2.swf"
+	/>
+
+	<!-- A node with a path id, whose calss is loading from a SWF, and whose contents load from an XML file -->
+	<!-- nodes with no id but with a path will be resolved lazily (unless they're part of a collection) -->
+	<package1:Klass s:path="commonLibrary1" s:lib="<libs.swf1>" s:url="xml/common.xml"/>
+	
+	<!-- swf libraries can be directly referened (instead of via a common reference) -->
+	<package1:Klass s:path="commonLibrary2" s:lib="swfs/external2.swf" s:url="xml/common.xml"/>
+	
+	<!-- Reference nodes use <> instead of {}, this allows for object string literals -->
+	<!-- Slashes in reference nodes refer to site stream nodes, dots then seek properties within path nodes -->
+	<geom:Point x="<commonLibrary1/startPoint.x>" y="0>"/>
+	
+	<!-- literal properties can be either an attribute or a text node -->
+	<geom:Rectangle s:id="rect" x="0" y="1" width="2">
+		<height>3</height>
+	</geom:Rectangle>
+	
+	<literalObject2>{test:12}</literalObject>
+	
+	<!-- untyped items should have their type inferred from their parent class -->
+	<myArray>
+		<!-- type inferrance and string literals can be used together  -->
+		<display:Sprite scrollRect="{x:0, y:0, width:10, height:10}"/>
+		<display:Sprite/>
+		<display:Sprite/>
+		<display:Sprite/>
+		<display:Sprite/>
+	</myArray>
+</Object>
