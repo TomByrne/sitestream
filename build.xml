@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="site_stream" default="all">
+
+	<!-- Setup build properties -->
+	<target name="-init">
+		<!-- External props -->
+		<property environment="env"/>
+	    <property file="${basedir}/build.user.properties" />
+	    <property file="${basedir}/build.properties" />
+		
+		<!-- Flex SDK -->
+		<property name="flex.sdk.lib" value="${flex.sdk.home}/lib" />
+		<property name="flex.sdk.adt" value="${flex.sdk.lib}/adt.jar" />
+		<property name="flex.sdk.compc" value="${flex.sdk.home}/bin/compc.exe" />
+		
+		<!-- General Source -->
+		<property name="src.dir" value="${basedir}/src" />
+		<property name="libs.dir" value="${basedir}/libs" />
+		
+		<!-- Tools -->
+		<property name="tools.dir" value="${basedir}/tools" />
+		<property name="config.dir" value="${basedir}/config" />
+		<property name="config.flex" value="${config.dir}/flex-config.xml" />
+		
+		<!-- General Build -->
+		<property name="build.dir" value="${basedir}/build" />
+		<property name="build.release.dir" value="${build.dir}/release" />
+		<property name="build.release.swc" value="${build.release.dir}/siteStream.swc" />
+		
+		<!-- Flex tasks -->
+		<property name="FLEX_HOME" value="${flex.sdk.home}" />
+		<taskdef resource="flexTasks.tasks" classpath="${flex.sdk.home}/ant/lib/flexTasks.jar" />
+		
+		<!-- SWC Packager -->
+		<taskdef name="swcpackager" classpath="${tools.dir}/SWCPackager.jar" 
+				 classname="org.farmcode.antTasks.SWCPackager" />
+	</target>
+	
+	<!-- Remove build artifacts -->
+	<target name="clean" depends="-init">
+		<delete dir="${build.dir}" />
+	</target>
+	
+	<!-- Setup build artifacts directories -->
+	<target name="-prepare" depends="clean">
+		<mkdir dir="${build.dir}" />		
+		<mkdir dir="${build.release.dir}" />		
+	</target>
+	
+	<!-- Run all tests and build a distributable -->
+	<target name="all" depends="test,build-release" />
+		
+	<!-- Build a swc for the current library -->
+	<target name="build-release" depends="-prepare">
+    	<swcpackager projectPath="${basedir}" includeMainSource="true" sourceExceptions=""
+    		swcOutput="${build.release.swc}" compiler="${flex.sdk.compc}"
+    		frameworkDirectory="${flex.sdk.lib}" 
+    		additionalArgs="-load-config+=${config.flex}" verbose="false" />
+	</target>
+	
+	<!-- Run all tests -->
+	<target name="test" depends="-prepare">
+		<echo message="TODO: Tie in test suite here" />
+	</target>
+	
+</project>

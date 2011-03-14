@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <projectDescription>
-	<name>SiteStream</name>
-	<comment></comment>
+	<name>site_stream_3</name>
+	<comment/>
 	<projects>
 	</projects>
 	<buildSpec>
@@ -20,3 +20,4 @@
 		<nature>com.adobe.flexbuilder.project.actionscriptnature</nature>
 	</natures>
 </projectDescription>
+
