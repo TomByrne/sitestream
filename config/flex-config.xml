@@ -3,14 +3,17 @@
 <flex-config>
 	 <compiler>
 		<keep-as3-metadata>
-			<name>Advice</name>
-			<name>Trigger</name>
-			<name>Property</name>
+			<!-- <name>Property</name> -->
 		</keep-as3-metadata>
 		
 		<define append="true">
         	<name>CONFIG::debug</name>
         	<value>false</value>
+    	</define>
+		
+		<define append="true">
+        	<name>CONFIG::release</name>
+        	<value>true</value>
     	</define>
 		
 		<define append="true">
@@ -30,7 +33,7 @@
 	 
 	 <metadata>
 		<publisher>tbyrne.org</publisher>
-		<creator>Thomas Byrne</creator>
+		<creator>Thomas Byrne and Daniel Holmes</creator>
 		<language>EN</language>
 	 </metadata>
 </flex-config>

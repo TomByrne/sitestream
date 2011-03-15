@@ -52,7 +52,7 @@
 		
 	<!-- Build a swc for the current library -->
 	<target name="build-release" depends="-prepare">
-    	<swcpackager projectPath="${basedir}" includeMainSource="true" sourceExceptions=""
+    	<swcpackager projectPath="${basedir}" includeMainSource="false" sourceExceptions=""
     		swcOutput="${build.release.swc}" compiler="${flex.sdk.compc}"
     		frameworkDirectory="${flex.sdk.lib}" 
     		additionalArgs="-load-config+=${config.flex}" verbose="false" />

@@ -15,7 +15,7 @@
 		(in this case 's'). These are:
 		- s:id = the property name within the parent object
 		- s:path = the SiteStream path name for this object (which creates a SiteStream node behind the scenes)
-		- s:lib = the SWF url from which this object's class gets loaded.
+		- s:libs = Array of SWF urls from which this node's classes get loaded.
 		- s:url = the XML url from which the object's full content gets loaded. -->
 	
 	<Object s:id="libs" s:path="libs"
@@ -25,10 +25,10 @@
 
 	<!-- A node with a path id, whose calss is loading from a SWF, and whose contents load from an XML file -->
 	<!-- nodes with no id but with a path will be resolved lazily (unless they're part of a collection) -->
-	<package1:Klass s:path="commonLibrary1" s:lib="<libs.swf1>" s:url="xml/common.xml"/>
+	<package1:Klass s:path="commonLibrary1" s:libs="<libs.swf1>" s:url="xml/common.xml"/>
 	
 	<!-- swf libraries can be directly referened (instead of via a common reference) -->
-	<package1:Klass s:path="commonLibrary2" s:lib="swfs/external2.swf" s:url="xml/common.xml"/>
+	<package1:Klass s:path="commonLibrary2" s:libs="swfs/external2.swf" s:url="xml/common.xml"/>
 	
 	<!-- Reference nodes use <> instead of {}, this allows for object string literals -->
 	<!-- Slashes in reference nodes refer to site stream nodes, dots then seek properties within path nodes -->

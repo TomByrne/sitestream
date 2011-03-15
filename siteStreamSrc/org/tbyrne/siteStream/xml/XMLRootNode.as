@@ -47,7 +47,7 @@ package org.tbyrne.siteStream.xml
 		public function XMLRootNode(rootXmlUrl:String=null, baseXmlUrl:String=null, baseSwfUrl:String=null){
 			super();
 			
-			_xmlReader = new XmlReader();
+			_xmlReader = new XmlReader(true);
 			_rootNode = new XMLNode(_xmlReader);
 			setTarget(_rootNode);
 			
@@ -74,7 +74,7 @@ package org.tbyrne.siteStream.xml
 		}
 		protected function onXmlLoaded(e:Event):void{
 			var xml:XML = new XML(_urlLoader.data);
-			_rootNode.xmlSummary = _xmlReader.readNodeSummary(xml);
+			_rootNode.xmlSummary = _xmlReader.readRootNode(xml);
 		}
 		protected function onXmlError(e:Event):void{
 			Log.error(e);
