@@ -6,7 +6,7 @@ package org.tbyrne.siteStream.objectTests
 	public class ClassNodeTest extends AbstractXmlReaderTest
 	{
 		override public function get xml():XML{
-			return <test:TestObject xmlns:test="org.tbyrne.siteStream">
+			return <test:TestObject xmlns:test="org.tbyrne.siteStream" xmlns:s="http://www.tbyrne.org/sitestream">
 						<test:TestObject s:id="type"/>
 					</test:TestObject>;
 		}

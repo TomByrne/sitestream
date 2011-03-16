@@ -11,6 +11,10 @@ package org.tbyrne.siteStream
 		
 		public var sprite:Sprite;
 		
+		public var array:Array;
+		
+		public var vector:Vector.<TestObject>;
+		
 		public function setProperty(property:*):void{
 			this.property = property;
 		}

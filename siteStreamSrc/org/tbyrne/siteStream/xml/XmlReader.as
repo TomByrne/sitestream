@@ -1,12 +1,12 @@
 package org.tbyrne.siteStream.xml
 {
 	import flash.utils.Dictionary;
-	import flash.utils.getQualifiedClassName;
 	import flash.xml.XMLNodeKinds;
 	
-	import org.tbyrne.core.IPendingResult;
 	import org.tbyrne.memory.LooseReference;
 	import org.tbyrne.reflection.ReflectionUtils;
+	import org.tbyrne.siteStream.util.StringParser;
+	import org.tbyrne.utils.methodClosure;
 
 	/**
 	 * A utility class used to step through XML and generate IXmlElementInfo objects
@@ -60,9 +60,12 @@ package org.tbyrne.siteStream.xml
 		*/
 		private var _cache:Dictionary;
 		
+		private var _interpretting:Dictionary;
+		
 		public function XmlReader(cacheResults:Boolean=false){
 			this.cacheResults = cacheResults;
 			_cache = new Dictionary();
+			_interpretting = new Dictionary();
 		}
 		
 		
@@ -79,7 +82,6 @@ package org.tbyrne.siteStream.xml
 			var useNode:Boolean = false;
 			
 			if(xml.nodeKind()==XMLNodeKinds.ELEMENT){
-				var packageName:String = cleanPackageName(xml.namespace());
 				pathId = getChildWithNS(xml,pathIdAttribute,metadataNamespace);
 				if(!pathId || !pathId.length){
 					if(nodeDetails){
@@ -107,18 +109,20 @@ package org.tbyrne.siteStream.xml
 			var classPath:String;
 			if(xml.nodeKind()==XMLNodeKinds.ATTRIBUTE){
 				parentPropName = xml.name();
-			}else if(xml.nodeKind()==XMLNodeKinds.ELEMENT){
-				
-				var packageName:String = cleanPackageName(xml.namespace());
+			}else if(xml.nodeKind()==XMLNodeKinds.ELEMENT && xml.namespace()!=metadataNamespace){
+				var packageName:String;
+				packageName = cleanPackageName(xml.namespace());
 				parentPropName = getChildWithNS(xml,propAttribute,metadataNamespace);
 				
+				
 				var nodeName:String = xml.localName();
-				if((!parentPropName || !parentPropName.length) && !packageName && !ReflectionUtils.getClassByName(nodeName)){
+				classPath = nodeName;
+				if(packageName && classPath)classPath = packageName+classPath;
+				
+				if((!parentPropName || !parentPropName.length) && !ReflectionUtils.doesClassExist(classPath)){
 					parentPropName = nodeName;
-				}else{
-					classPath = nodeName;
+					classPath = null;
 				}
-				if(packageName)classPath = packageName+classPath;
 			}
 			propDetails.parentSetter = parentPropName;
 			propDetails.classPath = classPath;
@@ -129,7 +133,7 @@ package org.tbyrne.siteStream.xml
 		
 		
 		
-		public function readNodeDetails(xml:XML, summary:IXmlNodeSummary):IPendingResult{
+		public function readNodeDetails(xml:XML, summary:IXmlNodeSummary):IXmlPendingResult{
 			var ret:NodeDetails = summary as NodeDetails;
 			ret.xml = xml;
 			assessRefAndDetails(xml,ret);
@@ -139,9 +143,10 @@ package org.tbyrne.siteStream.xml
 			var useReference:Boolean = false;
 			var stringValue:String;
 			
-			if(xml.nodeKind()==XMLNodeKinds.ATTRIBUTE){
+			var nodeKind:String = xml.nodeKind();
+			if(nodeKind==XMLNodeKinds.ATTRIBUTE){
 				stringValue = xml.toString();
-			}else if(xml.nodeKind()==XMLNodeKinds.ELEMENT){
+			}else if(nodeKind==XMLNodeKinds.ELEMENT){
 				stringValue = xml.text();
 			}else{
 				// other XML types are not yet supported
@@ -171,7 +176,7 @@ package org.tbyrne.siteStream.xml
 					createChildNodes(xml, nodeDetails);
 				}
 			}
-			propDetails.stringValue = stringValue;
+			propDetails.simpleValue = stringValue;
 			
 			return propDetails;
 		}
@@ -180,34 +185,36 @@ package org.tbyrne.siteStream.xml
 			var eleList:XMLList = xml.child(new QName(metadataNamespace,libsAttribute));
 			var libs:Vector.<String> = new Vector.<String>();
 			nodeDetails.libraries = libs;
-			createChildren(nodeDetails,nodeDetails,attList,eleList,libs);
+			createChildren(nodeDetails,nodeDetails,attList,eleList,libs,false);
 		}
-		private function createChildren(parentProp:PropDetails,parentNode:NodeDetails, attList:XMLList, eleList:XMLList, parentObject:*):void{
-			var added:Vector.<PropDetails> = new Vector.<PropDetails>();
-			if(attList)createChildList(attList,parentObject.constructor,added);
-			if(eleList)createChildList(eleList,parentObject.constructor,added);
+		private function createChildren(parentProp:PropDetails,parentNode:NodeDetails, attList:XMLList, eleList:XMLList, parentObject:*, filterMetadata:Boolean):void{
+			if(!attList.length() && !eleList.length())return;
 			
-			for each(var propDetails:PropDetails in added){
-				var childNode:NodeDetails = (propDetails as NodeDetails);
-				
-				var subParentNode:NodeDetails = parentNode;
-				
-				if(childNode){
-					parentNode.addChildNode(childNode);
-					if(!propDetails.parentSetter)subParentNode = childNode;
-				}else{
-					var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
-					if(refDetails)parentNode.addChildRef(refDetails);
+			var added:Vector.<PropDetails> = new Vector.<PropDetails>();
+			if(attList && attList.length())createChildList(attList,parentObject,added,filterMetadata);
+			if(eleList && eleList.length())createChildList(eleList,parentObject,added,filterMetadata);
+			
+			if(added.length){
+				for each(var propDetails:PropDetails in added){
+					propDetails.parentObject = parentObject;
+					
+					var childNode:NodeDetails = (propDetails as NodeDetails);
+					
+					if(childNode){
+						parentNode.addChildNode(childNode);
+					}else{
+						var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
+						if(refDetails)parentNode.addChildRef(refDetails);
+					}
+					if(propDetails.parentSetter){
+						parentNode.addChildProp(propDetails);
+						reassessClassProp(propDetails.xml,propDetails,parentNode,parentObject);
+					}
 				}
-				if(propDetails.parentSetter){
-					parentNode.addChildProp(propDetails);
-				}
-				
-				
-				if(propDetails.xml)reassessClassProp(propDetails.xml,propDetails,subParentNode,parentObject);
 			}
 		}
-		private function createChildList(xmlList:XMLList, parentClass:Class, added:Vector.<PropDetails>):void{
+		private function createChildList(xmlList:XMLList, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
+			var parentClass:Class = (parentObject.constructor);
 			var isArray:Boolean = (parentClass == Array);
 			
 			var isVector:Boolean;
@@ -224,30 +231,58 @@ package org.tbyrne.siteStream.xml
 			var l:int = xmlList.length();
 			for(var i:int=0; i<l; ++i){
 				var memberXML:XML = xmlList[i];
+				
+				if(filterMetadata && memberXML.namespace()==metadataNamespace){
+					continue;
+				}
+				
 				var nodeDetails:NodeDetails = assessNodeSummary(memberXML,null);
 				var propDetails:PropDetails = assessRefAndDetails(memberXML,nodeDetails);
 				if(propDetails){
 					var denyAdd:Boolean;
-					if((isArray || isVector) && propDetails.stringValue){
+					if((isArray || isVector) && propDetails.simpleValue!=null){
 						if(attemptLiteralParse(propDetails, nodeDetails, isArray, isVector, vectorType, added)){
 							denyAdd = true;
 						}
 					}
 					if(!denyAdd){
-						childListAdd(propDetails, nodeDetails, isArray, isVector, vectorType, added)
+						if(!nodeDetails && !propDetails.parentSetter && !propDetails.classPath){
+							// this happens with s:libs nodes, etc.
+							if(propDetails.simpleValue){
+								childListAdd(propDetails, nodeDetails, isArray, isVector, vectorType, added);
+							}
+							var attList:XMLList = memberXML.attributes();
+							var eleList:XMLList = memberXML.elements();
+							if(attList && attList.length())createChildList(attList,parentObject,added,filterMetadata);
+							if(eleList && eleList.length())createChildList(eleList,parentObject,added,filterMetadata);
+						}else{
+							childListAdd(propDetails, nodeDetails, isArray, isVector, vectorType, added);
+						}
 					}
 				}
 			}
 		}
 		private function attemptLiteralParse(propDetails:PropDetails, nodeDetails:NodeDetails, isArray:Boolean, isVector:Boolean, vectorType:String, added:Vector.<PropDetails>):Boolean{
-			var array:Array = attemptArrayParse(propDetails.stringValue);
+			var array:Array = StringParser.parseArray(propDetails.simpleValue);
 			var ret:Boolean;
+			var subPropDetails:PropDetails;
 			if(array){
 				ret = true;
-				for each(var string:String in array){
-					var subPropDetails:PropDetails = PropDetails.getNew();
-					subPropDetails.stringValue = string;
+				for each(var value:* in array){
+					subPropDetails = PropDetails.getNew();
+					subPropDetails.simpleValue = value;
 					childListAdd(subPropDetails, null, isArray, isVector, vectorType, added)
+				}
+			}else{
+				var object:Object = StringParser.parseObject(propDetails.simpleValue);
+				if(object){
+					ret = true;
+					for(var prop:String in object){
+						subPropDetails = PropDetails.getNew();
+						subPropDetails.parentSetter = prop;
+						subPropDetails.simpleValue = object[prop];
+						childListAdd(subPropDetails, null, isArray, isVector, vectorType, added)
+					}
 				}
 			}
 			return ret;
@@ -279,17 +314,19 @@ package org.tbyrne.siteStream.xml
 		
 		
 		
-		public function readObject(summary:IXmlNodeSummary, oldObject:Object):IPendingResult{
+		public function readObject(summary:IXmlNodeSummary, oldObject:Object):IXmlPendingResult{
 			var ret:NodeDetails = summary as NodeDetails;
 			var parentObject:*;
 			if(ret.parent){
 				parentObject = ret.parent.object;
 			}
 			reassessClassProp(ret.xml, ret, ret, parentObject);
-			//createObject(ret);
-			return ret;
+			return ret.objectPending;
 		}
 		protected function reassessClassProp(xml:XML, propDetails:PropDetails, parentNode:NodeDetails, parentObject:*):void{
+			
+			if(propDetails is ReferenceDetails)return;
+			
 			/*
 				Initially, we get the parentPropName and classpath from the node but do not
 				check it for deep references, this allows us to check early on whether a node
@@ -318,7 +355,7 @@ package org.tbyrne.siteStream.xml
 					varType = null;
 					if(parentTypeDesc){
 						typeName = getVariableType(parentTypeDesc, thisPropName);
-						if(typeName && typeName.length){
+						if(typeName && typeName.length && typeName!="*"){
 							//typeName = typeName.replace("::",".");
 							varType = ReflectionUtils.getClassByName(typeName);
 							//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
@@ -339,12 +376,12 @@ package org.tbyrne.siteStream.xml
 						if(value is Function){
 							propDetails.parentSetterIsMethod = true;
 							break;
-						}else{
+						}else if(value){
 							varType = value.constructor;
 						}
 					}
 					
-					if(!varType){
+					if(!varType && !typeName){
 						if(parentTypeDesc.@isDynamic.toString()!="true"){
 							var msg: String = "Couldn't map element \"" + thisPropName + "\"";
 							msg += " to object: "+ parentObject;
@@ -366,69 +403,109 @@ package org.tbyrne.siteStream.xml
 			var type:Class;
 			if(propDetails.classPath){
 				type = ReflectionUtils.getClassByName(propDetails.classPath);
+			}else if(isClassRef && propDetails.simpleValue){
+				type = ReflectionUtils.getClassByName(propDetails.simpleValue);
 			}else{
 				type = varType;
 			}
 				
 			var object: *;
-			var stringValue:String = propDetails.stringValue;
+			var simpleValue:* = propDetails.simpleValue;
 			if(isClassRef){
 				object = type;
 			}else{
 				switch(type){
 					case XML:
-						object = new XML(stringValue);
+						if(simpleValue is XML){
+							object = simpleValue;
+						}else{
+							object = new XML(simpleValue);
+						}
 						break;
 					case String:
-						object = stringValue;
+						if(simpleValue is String){
+							object = simpleValue;
+						}else{
+							object = String(simpleValue);
+						}
+						object = String(simpleValue);
 						break;
 					case Number:
-						if (stringValue.indexOf("0x") == 0) {
-							object = Number(stringValue);
-						}else if (stringValue.indexOf("#") == 0) {
-							object = Number("0x" + stringValue.substring(1));
-						}else if (stringValue.toLowerCase() == "nan") {
-							object = NaN;
-						} else {
-							object = parseFloat(stringValue);
+						if(simpleValue is Number){
+							object = simpleValue;
+						}else{
+							object = StringParser.parseNumber(simpleValue,false);
 						}
 						break;
 					case int:
 					case uint:
-						object = parseInt(stringValue);
+						if(simpleValue is int){
+							object = simpleValue;
+						}else{
+							object = int(StringParser.parseNumber(simpleValue,false));
+						}
 						break;
 					case Boolean:
-						object = (stringValue.toLowerCase()=="true");
+						if(simpleValue is Boolean){
+							object = simpleValue;
+						}else{
+							object = (simpleValue=="true");
+						}
 						break;
 					case Function:
-						// TODO: Need to consider package functions, which will look similiar to static functions
-						// e.g.		flash.utils.myFunction
-						//			flash.utils.FuncClass.myFunction
-						var methodSepIndex: int = stringValue.lastIndexOf(".");
-						if (methodSepIndex < 0){
-							object = ReflectionUtils.getFunctionByName(stringValue);
+						if(simpleValue is Function){
+							object = simpleValue;
 						}else{
-							var functionName: String = stringValue.substr(methodSepIndex + 1, stringValue.length);
-							var className: String = stringValue.substring(0, methodSepIndex);
-							var methodClass: Class = ReflectionUtils.getClassByName(className);
-							try{
-								object = methodClass[functionName] as Function;
-							}catch (e: ReferenceError){
-								Log.error("Function " + stringValue + " is not defined");
+							// TODO: Need to consider package functions, which will look similiar to static functions
+							// e.g.		flash.utils.myFunction
+							//			flash.utils.FuncClass.myFunction
+							var methodSepIndex: int = simpleValue.lastIndexOf(".");
+							if (methodSepIndex < 0){
+								object = ReflectionUtils.getFunctionByName(simpleValue);
+							}else{
+								var functionName: String = simpleValue.substr(methodSepIndex + 1, simpleValue.length);
+								var className: String = simpleValue.substring(0, methodSepIndex);
+								var methodClass: Class = ReflectionUtils.getClassByName(className);
+								try{
+									object = methodClass[functionName] as Function;
+								}catch (e: ReferenceError){
+									Log.error("Function " + simpleValue + " is not defined");
+								}
 							}
 						}
 						break;
 					default:
 						object = propDetails.object;
-						if(!object || !(object is type)){
-							object = new type();
+						if(type){
+							if(!object || !(object is type)){
+								object = new type();
+							}
+						}
+						if(simpleValue){
+							if(simpleValue is String){
+								simpleValue = StringParser.parse(simpleValue);
+							}
+							if(simpleValue is Object){
+								if(object){
+									for(var i:* in simpleValue){
+										object[i] = simpleValue[i];
+									}
+								}else{
+									object = simpleValue;
+								}
+							}else{
+								object = simpleValue;
+							}
 						}
 				}
 			}
-			var attList:XMLList = xml.attributes();
-			var eleList:XMLList = xml.elements();
-			createChildren(propDetails,parentNode,attList,eleList,object);
+			if(xml){
+				var attList:XMLList = xml.attributes();
+				var eleList:XMLList = xml.elements();
+				createChildren(propDetails,parentNode,attList,eleList,object,true);
+			}
 			
+			propDetails.committed = false;
 			propDetails.object = object;
 		}
 		
@@ -486,92 +563,108 @@ package org.tbyrne.siteStream.xml
 			var ret:NodeDetails;
 			if(!looseRef){
 				ret = NodeDetails.getNew();
+				ret.requestInterpret.addHandler(onRequestInterpret);
 				_cache[xml] = new LooseReference(ret);
 			}else if(looseRef.referenceExists){
 				ret = looseRef.reference as NodeDetails;
 			}else{
 				ret = NodeDetails.getNew();
+				ret.requestInterpret.addHandler(onRequestInterpret);
 				looseRef.object = ret;
 			}
 			return ret;
 		}
 		
-		protected function attemptArrayParse(string:String):Array{
-			var lastChar:int = string.length-1;
-			if(string.charAt(0)=="[" && string.charAt(lastChar)=="]"){
-				var ret:Array = [];
-				var pos:int=1;
-				var open:Array = [];
-				var nextEscaped:Boolean;
-				var isInString:Boolean;
-				var lastOpen:String;
-				var itemStart:int=1;
-				while(pos<lastChar){
-					var char:String = string.charAt(pos);
-					if(isInString){
-						if(nextEscaped){
-							nextEscaped = false;
-						}else if(char==lastOpen){
-							lastOpen = open.pop();
-							isInString = false;
-						}else if(char=="\\"){
-							nextEscaped = true;
-						}
-					}else{
-						switch(char){
-							case "'":
-							case '"':
-								if(lastOpen)open.push(lastOpen);
-								lastOpen = char;
-								isInString = true;
-								break;
-							case "[":
-								if(lastOpen)open.push(lastOpen);
-								lastOpen = "]";
-								break;
-							case '{':
-								if(lastOpen)open.push(lastOpen);
-								lastOpen = "}";
-								break;
-							case '(':
-								if(lastOpen)open.push(lastOpen);
-								lastOpen = ")";
-								break;
-							case '<':
-								if(lastOpen)open.push(lastOpen);
-								lastOpen = ">";
-								break;
-							case lastOpen:
-								lastOpen = open.pop();
-								break;
-							case ",":
-								if(!open.length){
-									ret.push(string.substring(itemStart,pos));
-									itemStart = pos+1;
-								}
-								break;
+		protected function onRequestInterpret(from:NodeDetails, interpretBundle:InterpretBundle):void{
+			if(!_interpretting[interpretBundle]){
+				var interpTried:Boolean = false;
+				var pendingChildren:Boolean = false;
+				for each(var prop:PropDetails in interpretBundle.props){
+					if(!prop.committed){
+						interpTried = true;
+						interpretProp(prop,methodClosure(checkBundle,interpretBundle));
+						if(!prop.committed){
+							pendingChildren = true;
 						}
 					}
-					++pos;
 				}
-				ret.push(string.substring(itemStart,pos));
-				return ret;
+				if(pendingChildren){
+					_interpretting[interpretBundle] = true;
+				}else if(!interpTried){
+					interpretBundle.performSuceeded();
+				}
 			}
-			return null;
+		}
+		private function checkBundle(prop:PropDetails, interpretBundle:InterpretBundle):void{
+			for each(var prop:PropDetails in interpretBundle.props){
+				if(!prop.committed){
+					return;
+				}
+			}
+			delete _interpretting[interpretBundle];
+			interpretBundle.performSuceeded();
+		}
+		
+		private function interpretProp(prop:PropDetails, onComplete:Function):void{
+			var complete:Function;
+			var pendingChildren:Boolean = false;
+			var interpTried:Boolean = false;
+			for each(var childProp:PropDetails in prop.childProps){
+				if(!childProp.committed){
+					interpTried = true;
+					interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+					if(!childProp.committed){
+						pendingChildren = true;
+					}
+				}
+			}
+			if(!pendingChildren){
+				if(!prop.committed){
+					commitValue(prop);
+				}
+				if(!interpTried)onComplete(prop);
+			}
+		}
+		private function onPropInterpreted(prop:PropDetails, parentProp:PropDetails, onComplete:Function):void{
+			interpretProp(parentProp,onComplete);
+		}
+		
+		private function commitValue(prop:PropDetails):void{
+			prop.committed = true;
+			
+			if(!prop.parentObject){
+				return;
+			}
+			
+			if(prop.parentSetterIsMethod){
+				var args:Array;
+				if(prop.parentSetterArgs){
+					args = prop.parentSetterArgs.concat();
+					for(var i:int=0; i<args.length; ++i){
+						if(args[i]==PROP_REPLACE){
+							args[i] = prop.object;
+						}
+					}
+				}else{
+					args = [prop.object];
+				}
+				prop.parentObject[prop.parentSetter].apply(null,args);
+			}else{
+				prop.parentObject[prop.parentSetter] = prop.object;
+			}
 		}
 	}
 }
-import flash.sampler.NewObjectSample;
 import flash.xml.XMLNodeKinds;
 
 import org.tbyrne.acting.actTypes.IAct;
 import org.tbyrne.acting.acts.Act;
-import org.tbyrne.core.IPendingResult;
 import org.tbyrne.hoborg.ObjectPool;
 import org.tbyrne.siteStream.xml.IXmlNodeDetails;
 import org.tbyrne.siteStream.xml.IXmlNodeSummary;
+import org.tbyrne.siteStream.xml.IXmlPendingResult;
 
-class PropDetails implements IPendingResult{
+class PropDetails{
 	private static const pool:ObjectPool = new ObjectPool(PropDetails);
 	public static function getNew():PropDetails{
 		var ret:PropDetails = pool.takeObject();
@@ -579,30 +672,14 @@ class PropDetails implements IPendingResult{
 		return ret;
 	}
 	
-	/**
-	 * @inheritDoc
-	 */
-	public function get success():IAct{
-		return (_success || (_success = new Act()));
-	}
-	/**
-	 * @inheritDoc
-	 */
-	public function get fail():IAct{
-		return (_fail || (_fail = new Act()));
-	}
-	protected var _fail:Act;
-	protected var _success:Act;
-	
-	
-	public function get result():*{
-		return _object;
-	}
 	public function get object():*{
 		return _object;
 	}
 	public function set object(value:*):void{
 		_object = value;
+	}
+	public function get childProps():Vector.<PropDetails>{
+		return _childProps;
 	}
 	
 	private var _object:*;
@@ -611,16 +688,15 @@ class PropDetails implements IPendingResult{
 	public var parentSetterArgs:Array;
 	public var parentSetter:String;
 	public var classPath:String;
-	//public var isWriteOnly:Boolean;
-	//public var isClassReference:Boolean;
 	public var parent:PropDetails;
 	public var parentObject:*;
 	public var xml:XML;
+	public var committed:Boolean;
 	
-	public var stringValue:*;
+	public var simpleValue:*;
 	
 	
-	private var _childProps:Vector.<PropDetails>;
+	protected var _childProps:Vector.<PropDetails>;
 	
 	internal var pool:ObjectPool;
 	
@@ -644,11 +720,9 @@ class PropDetails implements IPendingResult{
 		parentSetterArgs = null;
 		parent = null;
 		parentObject = null;
-		stringValue = null;
+		simpleValue = null;
 		parentSetter = null;
 		classPath = null;
-		//isWriteOnly = false;
-		//isClassReference = false;
 		parentSetterIsMethod = false;
 		pool.releaseObject(this);
 	}
@@ -674,9 +748,25 @@ class NodeDetails extends PropDetails implements IXmlNodeSummary, IXmlNodeDetail
 	}
 	
 	
+	/**
+	 * handler(from:NodeDetails, interpretBundle:InterpretBundle)
+	 */
+	public function get requestInterpret():IAct{
+		return _requestInterpret;
+	}
 	
-	public function get detailsPending():IPendingResult{
-		return _detailsPending;
+	protected var _requestInterpret:Act = new Act();
+	
+	
+	
+	public function get detailsPending():IXmlPendingResult{
+		return _detailsBundle;
+	}
+	public function get objectPending():IXmlPendingResult{
+		return _objectBundle;
+	}
+	public function get nonRefPending():IXmlPendingResult{
+		return _nonRefBundle;
 	}
 	public function get pathId():String{
 		return _pathId;
@@ -684,13 +774,6 @@ class NodeDetails extends PropDetails implements IXmlNodeSummary, IXmlNodeDetail
 	public function set pathId(value:String):void{
 		_pathId = value;
 	}
-	
-	/*public function get xml():XML{
-		return _xml;
-	}
-	public function set xml(value:XML):void{
-		_xml = value;
-	}*/
 	
 	public function get xmlUrl():String{
 		return _xmlUrl;
@@ -708,23 +791,85 @@ class NodeDetails extends PropDetails implements IXmlNodeSummary, IXmlNodeDetail
 	}
 	public function set libraries(value:Vector.<String>):void{
 		_libraries = value;
+		
+		_detailsBundle.clearProps();
+		if(_libraries){
+			for each(var propDetails:PropDetails in _childProps){
+				if(propDetails.parentObject==_libraries)_detailsBundle.addProp(propDetails);
+			}
+		}
+	}
+	override public function set object(value:*):void{
+		super.object = value;
+		_objectBundle.result = value;
+		_nonRefBundle.result = value;
 	}
 	
-	private var _detailsPending:PendingResult;
-	private var _libraries:Vector.<String>;
+	private var _detailsBundle:InterpretBundle;
+	private var _objectBundle:InterpretBundle;
+	private var _nonRefBundle:InterpretBundle;
+	
 	private var _childNodes:Vector.<IXmlNodeSummary>;
 	private var _childNodesCast:Vector.<NodeDetails>;
 	private var _childReferences:Vector.<ReferenceDetails>;
 	private var _xmlUrl:String;
-	//private var _xml:XML;
 	private var _pathId:String;
 	
+	//private var _nonRefChildren:Vector.<PropDetails>;
+	
+	//private var _libraryProps:Vector.<PropDetails>;
+	private var _libraries:Vector.<String>;
 	
 	public function NodeDetails(){
 		super();
+		//_nonRefChildren = new Vector.<PropDetails>();
 		_childNodes = new Vector.<IXmlNodeSummary>();
 		_childNodesCast = new Vector.<NodeDetails>();
 		_childReferences = new Vector.<ReferenceDetails>();
+		
+		_detailsBundle = new InterpretBundle(this);
+		_detailsBundle.beginRequested.addHandler(onDetailsRequested);
+		
+		_objectBundle = new InterpretBundle();
+		_objectBundle.beginRequested.addHandler(onObjectRequested);
+		_objectBundle.addProp(this);
+		
+		_nonRefBundle = new InterpretBundle();
+		_nonRefBundle.beginRequested.addHandler(onNonRefRequested);
+	}
+	override public function addChildProp(childProp:PropDetails):void{
+		super.addChildProp(childProp);
+		if(!(childProp is ReferenceDetails)){
+			_nonRefBundle.addProp(childProp);
+		}
+		if(_libraries && childProp.parentObject==_libraries){
+			_detailsBundle.addProp(childProp);
+		}
+	}
+	protected function onDetailsRequested(from:InterpretBundle):void{
+		if(_detailsBundle.invalid){
+			_detailsBundle.performSuceeded();
+		}else{
+			//_detailsBundle.interpretting = true;
+			_requestInterpret.perform(this,_detailsBundle);
+		}
+	}
+	
+	protected function onObjectRequested(from:InterpretBundle):void{
+		if(_objectBundle.invalid){
+			_objectBundle.performSuceeded();
+		}else{
+			//_objectBundle.interpretting = true;
+			_requestInterpret.perform(this,_objectBundle);
+		}
+	}
+	protected function onNonRefRequested(from:InterpretBundle):void{
+		if(_nonRefBundle.invalid){
+			_nonRefBundle.performSuceeded();
+		}else{
+			//_nonRefBundle.interpretting = true;
+			_requestInterpret.perform(this,_nonRefBundle);
+		}
 	}
 	
 	public function addChildNode(childNode:NodeDetails):void{
@@ -750,25 +895,36 @@ class NodeDetails extends PropDetails implements IXmlNodeSummary, IXmlNodeDetail
 			_childNodes = new Vector.<IXmlNodeSummary>();
 			_childNodesCast = new Vector.<NodeDetails>();
 			_childReferences = new Vector.<ReferenceDetails>();
+			//_nonRefChildren = new Vector.<PropDetails>();
+			//_libraryProps = new Vector.<PropDetails>();
 		}
 		_pathId = null;
 		_xmlUrl = null;
 		_libraries = null;
+		_requestInterpret.removeAllHandlers();
+		_detailsBundle.release();
+		_objectBundle.release();
+		_nonRefBundle.release();
 	}
 }
-class PendingResult implements IPendingResult{
+class InterpretBundle implements IXmlPendingResult{
 	/**
 	 * @inheritDoc
 	 */
-	public function get success():IAct{
-		return (_success || (_success = new Act()));
+	public function get succeeded():IAct{
+		return (_succeeded || (_succeeded = new Act()));
 	}
-	
 	/**
 	 * @inheritDoc
 	 */
-	public function get fail():IAct{
-		return (_fail || (_fail = new Act()));
+	public function get failed():IAct{
+		return (_failed || (_failed = new Act()));
+	}
+	/**
+	 * handler(handler:PendingResult)
+	 */
+	public function get beginRequested():IAct{
+		return (_beginRequested || (_beginRequested = new Act()));
 	}
 	
 	
@@ -779,7 +935,60 @@ class PendingResult implements IPendingResult{
 		_result = value;
 	}
 	
-	private var _result:*;
-	protected var _fail:Act;
-	protected var _success:Act;
+	
+	public function get props():Vector.<PropDetails>{
+		return _props;
+	}
+	/*public function get interpretting():Boolean{
+		return _interpretting;
+	}*/
+	public function get invalid():Boolean{
+		return _invalid;
+	}
+	
+	//protected var _interpretting:Boolean;
+	protected var _invalid:Boolean;
+	
+	protected var _result:*;
+	protected var _props:Vector.<PropDetails>;
+	protected var _succeeded:Act;
+	protected var _failed:Act;
+	protected var _beginRequested:Act;
+	
+	public function InterpretBundle(result:*=null){
+		this.result = result;
+		
+		_props = new Vector.<PropDetails>();
+	}
+	
+	public function begin():void{
+		if(_beginRequested)_beginRequested.perform(this);
+	}
+	public function performSuceeded():void{
+		//_interpretting = false;
+		_invalid = true;
+		if(_succeeded)_succeeded.perform(this);
+	}
+	public function performFailed():void{
+		//_interpretting = false;
+		_invalid = false;
+		if(_failed)_failed.perform(this);
+	}
+	public function addProp(prop:PropDetails):void{
+		_props.push(prop);
+		_invalid = false;
+	}
+	public function clearProps():void{
+		if(_props.length){
+			_props = new Vector.<PropDetails>();
+			//_interpretting = false;
+			_invalid = false;
+		}
+	}
+	
+	public function release():void{
+		_succeeded.removeAllHandlers();
+		_failed.removeAllHandlers();
+		clearProps();
+	}
 }
