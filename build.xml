@@ -53,6 +53,38 @@
 				<pathelement location="${libs.dir}/pmd-4.2.5.jar" />
 			</classpath>
 		</taskdef>
+		
+		<!-- FlexPMD -->
+		<taskdef name="flexpmd" classname="com.adobe.ac.pmd.ant.FlexPmdAntTask"
+				 classpath="${libs.dir}/flex-pmd-ant-task-${flexpmd.version}.jar">
+			<classpath>
+		    	<pathelement location="${libs.dir}/flex-pmd-core-${flexpmd.version}.jar" />
+		    	<pathelement location="${libs.dir}/flex-pmd-files-${flexpmd.version}.jar" />
+		    	<pathelement location="${libs.dir}/flex-pmd-ruleset-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/as3-plugin-utils-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/as3-parser-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/as3-parser-api-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/commons-lang-2.4.jar" />
+				<pathelement location="${libs.dir}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/pmd-4.2.5.jar" />
+			</classpath>
+		</taskdef>
+		
+		<!-- FlexMetrics -->
+		<taskdef name="flexmetrics" classname="com.adobe.ac.pmd.metrics.ant.FlexMetricsAntTask"
+		       classpath="${libs.dir}/flex-pmd-metrics-ant-task-${flexpmd.version}.jar">
+			<classpath>
+		    	<pathelement location="${libs.dir}/flex-pmd-files-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/flex-pmd-metrics-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/as3-plugin-utils-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/as3-parser-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/as3-parser-api-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/commons-lang-2.4.jar" />
+				<pathelement location="${libs.dir}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.dir}/pmd-4.2.5.jar" />
+		      	<pathelement location="${libs.dir}/dom4j-1.6.1.jar"/>
+		     </classpath>
+		</taskdef>
 	</target>
 	
 	<!-- Remove build artifacts -->
@@ -70,7 +102,7 @@
 	</target>
 	
 	<!-- Run all tests and create a debug build of the library -->
-	<target name="all" depends="test,analyse-cpd,build" 
+	<target name="all" depends="test,analyse,build" 
 			description="Run all tests and create a debug build of the library" />
 		
 	<!-- Create a debug build of the library -->
@@ -137,6 +169,10 @@
 		</sequential>
 	</macrodef>
 	
+	<!-- Run all analysis -->
+	<target name="analyse" depends="analyse-cpd,analyse-metrics,analyse-pmd"
+			description="Run all analysis" />
+	
 	<!-- Run CPD Analysis -->
     <target name="analyse-cpd" depends="-prepare" description="Runs CPD Analysis">
     	<flexcpd minimumTokenCount="50" outputFile="${build.analysis.dir}/cpd.xml">
@@ -145,6 +181,17 @@
           	</fileset>
        	</flexcpd>
     </target>
+	
+	<!-- Run Metrics Analysis -->
+	<target name="analyse-metrics" depends="-prepare" description="Run Metrics Analysis">
+		<flexmetrics sourcedirectory="${src.dir}" outputfile="${build.analysis.dir}/metrics.xml"/>
+	</target>
+	
+	<!-- Run PMD Analysis -->
+	<target name="analyse-pmd" depends="-prepare" description="Run PMD Analysis">
+		<flexpmd sourceDirectory="${src.dir}" outputDirectory="${build.analysis.dir}/pmd" />
+				 <!--ruleset="${basedir}/pmd-ruleset.xml" />-->
+	</target>
 	
 	<!-- Compile swc version of the library -->
 	<macrodef name="compileswc">
