@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="site_stream" default="all">
 
-	<!-- Setup build properties -->
+	<!-- Sets up all required build properties -->
 	<target name="-init">
 		<!-- External props -->
 		<property environment="env"/>
@@ -21,11 +21,13 @@
 		<!-- Build Config -->
 		<property name="config.dir" value="${basedir}/config" />
 		<property name="config.flex" value="${config.dir}/flex-config.xml" />
+		<property name="config.version.properties" value="${config.dir}/version.properties" />
+		<property file="${config.version.properties}" />
 		
 		<!-- General Build -->
+		<property name="release.name" value="SiteStream" />
 		<property name="build.dir" value="${basedir}/build" />
 		<property name="build.release.dir" value="${build.dir}/release" />
-		<property name="build.release.swc" value="${build.release.dir}/siteStream.swc" />
 		<property name="build.test.dir" value="${build.dir}/test" />
 		<property name="build.test.reports.dir" value="${build.test.dir}/reports" />
 		
@@ -39,7 +41,7 @@
 	</target>
 	
 	<!-- Remove build artifacts -->
-	<target name="clean" depends="-init">
+	<target name="clean" depends="-init" description="Remove build artifacts">
 		<delete dir="${build.dir}" />
 	</target>
 	
@@ -51,26 +53,45 @@
 		<mkdir dir="${build.test.reports.dir}" />		
 	</target>
 	
-	<!-- Run all tests and build a distributable -->
-	<target name="all" depends="release" />
+	<!-- Run all tests and create a debug build of the library -->
+	<target name="all" depends="test,build" 
+			description="Run all tests and create a debug build of the library" />
 		
-	<!-- Build a swc for the current library -->
-	<target name="release" depends="test">
-		<compc output="${build.release.swc}">
-			<source-path path-element="${src.dir}" />			
-			<include-sources dir="${src.dir}" includes="**/*.as" />			
-			<external-library-path dir="${libs.dir}">
-				<include name="*.swc"/>
-			</external-library-path>
-			<load-config filename="${config.flex}" />
-			<external-library-path dir="${flex.sdk.home}/frameworks/libs/player/10.0">
-				<include name="*.swc"/>
-			</external-library-path>
-		</compc>
+	<!-- Create a debug build of the library -->
+	<target name="build" depends="-prepare" 
+		description="Create a debug build of the library">
+		<property name="build.version.full.num" 
+				  value="${version.major.num}.${version.major.num}.${version.build.num}" />
+		<property name="snapshot.file" 
+				  value="${release.name}-${build.version.full.num}_SNAPSHOT.swc" />
+		<compileswc file="${build.release.dir}/${snapshot.file}" debug="true" />
+	</target>
+	
+	<!-- Build a release swc for the current library -->
+	<target name="release" depends="test" description="Build a release swc for the current library">
+		<release major="${version.major.num}" minor="${version.minor.num}" 
+				 build="${version.build.num}" />
+	</target>
+	
+	<!-- Build a minor release swc for the current library -->
+	<target name="release-minor" depends="test" 
+			description="Build a new minor release swc for the current library">
+		<propertyoffset name="next.version.minor.num" value="${version.minor.num}" 
+						offset="1" />
+		<release major="${version.major.num}" minor="${next.version.minor.num}" 
+				 build="0" />
+	</target>
+	
+	<!-- Build a major release swc for the current library -->
+	<target name="release-major" depends="test" 
+			description="Build a new major release swc for the current library">
+		<propertyoffset name="next.version.major.num" value="${version.major.num}" 
+						offset="1" />
+		<release major="${next.version.major.num}" minor="0" build="0" />
 	</target>
 	
 	<!-- Run all tests -->
-	<target name="test" depends="-prepare">
+	<target name="test" depends="-prepare" description="Run all tests">
 		<flexunit workingDir="${build.test.dir}" toDir="${build.test.reports.dir}" 
 				  haltonfailure="true" verbose="false" localTrusted="true">
 			<source dir="${src.dir}" />
@@ -80,8 +101,6 @@
 			</testSource>
 			<library dir="${libs.dir}" />
 		</flexunit>
-
-		<!-- Generate readable JUnit-style reports -->
 		<junitreport todir="${build.test.reports.dir}">
 			<fileset dir="${build.test.reports.dir}">
 				<include name="TEST-*.xml" />
@@ -90,4 +109,65 @@
 		</junitreport>
 	</target>
 	
+	<!-- Releases the current version of the library under the given numbering -->
+	<macrodef name="release">
+		<attribute name="major" />
+		<attribute name="minor" />
+		<attribute name="build" />
+		<sequential>
+			<compileswc file="${build.release.dir}/${release.name}-@{major}.@{minor}.@{build}.swc" />
+			<propertyoffset name="next.version.build.num" value="@{build}" offset="1" />
+			<saveversion major="@{major}" minor="@{minor}" build="${next.version.build.num}" />
+		</sequential>
+	</macrodef>
+	
+	<!-- Compile swc version of the library -->
+	<macrodef name="compileswc">
+		<attribute name="file" />
+		<attribute name="debug" default="false" />
+		<sequential>
+			<compc output="@{file}" debug="@{debug}">
+				<source-path path-element="${src.dir}" />			
+				<include-sources dir="${src.dir}" includes="**/*.as" />			
+				<external-library-path dir="${libs.dir}">
+					<include name="*.swc"/>
+				</external-library-path>
+				<load-config filename="${config.flex}" />
+				<external-library-path dir="${flex.sdk.home}/frameworks/libs/player/10.0">
+					<include name="*.swc"/>
+				</external-library-path>
+			</compc>
+		</sequential>
+	</macrodef>
+	
+	<!-- Saves version info to the version properties file -->
+	<macrodef name="saveversion">
+		<attribute name="major" />
+		<attribute name="minor" />
+		<attribute name="build" />
+		<sequential>
+			<propertyfile file="${config.version.properties}">
+		    	<entry key="version.major.num" type="int" value="@{major}" operation="=" />
+	    		<entry key="version.minor.num" type="int" value="@{minor}" operation="=" />
+	    		<entry key="version.build.num" type="int" value="@{build}" operation="=" />
+	    	</propertyfile>
+		</sequential>
+	</macrodef>
+	
+	<!-- Offset a given value and assign result to a property -->
+	<macrodef name="propertyoffset">
+		<attribute name="name" />
+		<attribute name="value" />
+		<attribute name="offset" />
+		<attribute name="operation" default="+" />
+		<sequential>
+			<tempfile property="propertyoffset.@{name}" deleteonexit="true" 
+					  destdir="${build.dir}" />
+			<propertyfile file="${propertyoffset.@{name}}">
+		    	<entry key="@{name}" type="int" default="@{value}" operation="@{operation}"
+		    		   value="@{offset}" />
+		    </propertyfile>
+			<property file="${propertyoffset.@{name}}" />
+		</sequential>
+	</macrodef>	
 </project>
