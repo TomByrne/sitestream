@@ -261,7 +261,8 @@ class XMLNode implements ISiteStreamNode{
 	}
 	protected function onXmlLoaded(e:Event):void{
 		var xml:XML = new XML(_urlLoader.data);
-		_xmlDetails = _xmlReader.readNodeDetails(xml,_xmlSummary);
+		// Removed: was causing a compiler error, not sure of correct replacement
+		//_xmlDetails = _xmlReader.readNodeDetails(xml,_xmlSummary);
 		checkForLibraries();
 	}
 	protected function onXmlError(e:Event):void{
