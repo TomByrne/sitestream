@@ -14,11 +14,11 @@
 		<property name="flex.sdk.compc" value="${flex.sdk.home}/bin/compc.exe" />
 		
 		<!-- General Source -->
-		<property name="src.dir" value="${basedir}/src" />
+		<property name="src.dir" value="${basedir}/siteStreamSrc" />
+		<property name="test.src.dir" value="${basedir}/testSrc" />
 		<property name="libs.dir" value="${basedir}/libs" />
 		
-		<!-- Tools -->
-		<property name="tools.dir" value="${basedir}/tools" />
+		<!-- Build Config -->
 		<property name="config.dir" value="${basedir}/config" />
 		<property name="config.flex" value="${config.dir}/flex-config.xml" />
 		
@@ -26,14 +26,20 @@
 		<property name="build.dir" value="${basedir}/build" />
 		<property name="build.release.dir" value="${build.dir}/release" />
 		<property name="build.release.swc" value="${build.release.dir}/siteStream.swc" />
+		<property name="build.test.dir" value="${build.dir}/test" />
+		<property name="build.test.reports.dir" value="${build.test.dir}/reports" />
 		
 		<!-- Flex tasks -->
 		<property name="FLEX_HOME" value="${flex.sdk.home}" />
 		<taskdef resource="flexTasks.tasks" classpath="${flex.sdk.home}/ant/lib/flexTasks.jar" />
 		
 		<!-- SWC Packager -->
-		<taskdef name="swcpackager" classpath="${tools.dir}/SWCPackager.jar" 
+		<taskdef name="swcpackager" classpath="${libs.dir}/SWCPackager.jar" 
 				 classname="org.farmcode.antTasks.SWCPackager" />
+		
+		<!-- FlexUnit -->
+		<taskdef resource="flexUnitTasks.tasks" 
+				 classpath="${libs.dir}/flexUnitTasks-4.1.0_RC2-4.jar" />
 	</target>
 	
 	<!-- Remove build artifacts -->
@@ -45,13 +51,15 @@
 	<target name="-prepare" depends="clean">
 		<mkdir dir="${build.dir}" />		
 		<mkdir dir="${build.release.dir}" />		
+		<mkdir dir="${build.test.dir}" />		
+		<mkdir dir="${build.test.reports.dir}" />		
 	</target>
 	
 	<!-- Run all tests and build a distributable -->
-	<target name="all" depends="test,build-release" />
+	<target name="all" depends="release" />
 		
 	<!-- Build a swc for the current library -->
-	<target name="build-release" depends="-prepare">
+	<target name="release" depends="test">
     	<swcpackager projectPath="${basedir}" includeMainSource="false" sourceExceptions=""
     		swcOutput="${build.release.swc}" compiler="${flex.sdk.compc}"
     		frameworkDirectory="${flex.sdk.lib}" 
@@ -60,7 +68,23 @@
 	
 	<!-- Run all tests -->
 	<target name="test" depends="-prepare">
-		<echo message="TODO: Tie in test suite here" />
+		<flexunit workingDir="${build.test.dir}" toDir="${build.test.reports.dir}" 
+				  haltonfailure="true" verbose="false" localTrusted="true">
+			<source dir="${src.dir}" />
+		    <testSource dir="${test.src.dir}">
+				<!--<include name="**/*Test.as" />-->
+				<include name="ExampleTest.as" />
+			</testSource>
+			<library dir="${libs.dir}" />
+		</flexunit>
+
+		<!-- Generate readable JUnit-style reports -->
+		<junitreport todir="${build.test.reports.dir}">
+			<fileset dir="${build.test.reports.dir}">
+				<include name="TEST-*.xml" />
+			</fileset>
+			<report format="frames" todir="${build.test.reports.dir}/html" />
+		</junitreport>
 	</target>
 	
 </project>
