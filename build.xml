@@ -33,10 +33,6 @@
 		<property name="FLEX_HOME" value="${flex.sdk.home}" />
 		<taskdef resource="flexTasks.tasks" classpath="${flex.sdk.home}/ant/lib/flexTasks.jar" />
 		
-		<!-- SWC Packager -->
-		<taskdef name="swcpackager" classpath="${libs.dir}/SWCPackager.jar" 
-				 classname="org.farmcode.antTasks.SWCPackager" />
-		
 		<!-- FlexUnit -->
 		<taskdef resource="flexUnitTasks.tasks" 
 				 classpath="${libs.dir}/flexUnitTasks-4.1.0_RC2-4.jar" />
