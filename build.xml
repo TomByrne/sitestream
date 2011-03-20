@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="site_stream" default="all">
-
+	<!-- TODO:  FlexPMD 
+				flex unit test coverage?
+				asdoc -->
 	<!-- Sets up all required build properties -->
 	<target name="-init">
 		<!-- External props -->
@@ -10,8 +12,6 @@
 		
 		<!-- Flex SDK -->
 		<property name="flex.sdk.lib" value="${flex.sdk.home}/lib" />
-		<property name="flex.sdk.adt" value="${flex.sdk.lib}/adt.jar" />
-		<property name="flex.sdk.compc" value="${flex.sdk.home}/bin/compc.exe" />
 		
 		<!-- General Source -->
 		<property name="src.dir" value="${basedir}/siteStreamSrc" />
@@ -28,6 +28,7 @@
 		<property name="release.name" value="SiteStream" />
 		<property name="build.dir" value="${basedir}/build" />
 		<property name="build.release.dir" value="${build.dir}/release" />
+		<property name="build.analysis.dir" value="${build.dir}/analysis" />
 		<property name="build.test.dir" value="${build.dir}/test" />
 		<property name="build.test.reports.dir" value="${build.test.dir}/reports" />
 		
@@ -38,6 +39,20 @@
 		<!-- FlexUnit -->
 		<taskdef resource="flexUnitTasks.tasks" 
 				 classpath="${libs.dir}/flexUnitTasks-4.1.0_RC2-4.jar" />
+		
+		<!-- FlexCPD -->
+		<property name="flexpmd.version" value="1.2" />
+		<taskdef name="flexcpd" classname="com.adobe.ac.cpd.ant.FlexCpdAntTask"
+			 	 classpath="${libs.dir}/flex-pmd-cpd-ant-task-${flexpmd.version}.jar">
+			<classpath>
+				<pathelement location="${libs.dir}/flex-pmd-files-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/flex-pmd-cpd-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/as3-plugin-utils-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/as3-parser-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/as3-parser-api-${flexpmd.version}.jar" />
+				<pathelement location="${libs.dir}/pmd-4.2.5.jar" />
+			</classpath>
+		</taskdef>
 	</target>
 	
 	<!-- Remove build artifacts -->
@@ -47,14 +62,15 @@
 	
 	<!-- Setup build artifacts directories -->
 	<target name="-prepare" depends="clean">
-		<mkdir dir="${build.dir}" />		
-		<mkdir dir="${build.release.dir}" />		
-		<mkdir dir="${build.test.dir}" />		
-		<mkdir dir="${build.test.reports.dir}" />		
+		<mkdir dir="${build.dir}" />
+		<mkdir dir="${build.release.dir}" />
+		<mkdir dir="${build.analysis.dir}" />
+		<mkdir dir="${build.test.dir}" />
+		<mkdir dir="${build.test.reports.dir}" />
 	</target>
 	
 	<!-- Run all tests and create a debug build of the library -->
-	<target name="all" depends="test,build" 
+	<target name="all" depends="test,analyse-cpd,build" 
 			description="Run all tests and create a debug build of the library" />
 		
 	<!-- Create a debug build of the library -->
@@ -121,6 +137,15 @@
 		</sequential>
 	</macrodef>
 	
+	<!-- Run CPD Analysis -->
+    <target name="analyse-cpd" depends="-prepare" description="Runs CPD Analysis">
+    	<flexcpd minimumTokenCount="50" outputFile="${build.analysis.dir}/cpd.xml">
+        	<fileset dir="${src.dir}">
+            	<include name="**/*.as"/>
+          	</fileset>
+       	</flexcpd>
+    </target>
+	
 	<!-- Compile swc version of the library -->
 	<macrodef name="compileswc">
 		<attribute name="file" />
@@ -169,5 +194,5 @@
 		    </propertyfile>
 			<property file="${propertyoffset.@{name}}" />
 		</sequential>
-	</macrodef>	
+	</macrodef>
 </project>
