@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="site_stream" default="all">
-	<!-- TODO: flex unit test coverage? -->
+	<!-- TODO: flex unit test coverage -->
 	<!-- Sets up all required build properties -->
 	<target name="-init">
 		<!-- External props -->
@@ -9,24 +9,24 @@
 	    <property file="${basedir}/build.properties" />
 		
 		<!-- General Source -->
-		<property name="src.dir" value="${basedir}/siteStreamSrc" />
-		<property name="test.src.dir" value="${basedir}/testSrc" />
-		<property name="libs.dir" value="${basedir}/libs" />
+		<property name="src.loc" location="${basedir}/siteStreamSrc" />
+		<property name="test.src.loc" location="${basedir}/testSrc" />
+		<property name="libs.loc" location="${basedir}/libs" />
 		
 		<!-- Build Config -->
-		<property name="config.dir" value="${basedir}/config" />
-		<property name="config.flex" value="${config.dir}/flex-config.xml" />
-		<property name="config.version.properties" value="${config.dir}/version.properties" />
+		<property name="config.loc" location="${basedir}/config" />
+		<property name="config.flex" value="${config.loc}/flex-config.xml" />
+		<property name="config.version.properties" value="${config.loc}/version.properties" />
 		<property file="${config.version.properties}" />
 		
 		<!-- General Build -->
 		<property name="release.name" value="SiteStream" />
-		<property name="build.dir" value="${basedir}/build" />
-		<property name="build.api.dir" value="${build.dir}/api" />
-		<property name="build.release.dir" value="${build.dir}/release" />
-		<property name="build.analysis.dir" value="${build.dir}/analysis" />
-		<property name="build.test.dir" value="${build.dir}/test" />
-		<property name="build.test.reports.dir" value="${build.test.dir}/reports" />
+		<property name="build.loc" location="${basedir}/build" />
+		<property name="build.api.loc" location="${build.loc}/api" />
+		<property name="build.release.loc" location="${build.loc}/release" />
+		<property name="build.analysis.loc" location="${build.loc}/analysis" />
+		<property name="build.test.loc" location="${build.loc}/test" />
+		<property name="build.test.reports.loc" location="${build.test.loc}/reports" />
 		
 		<!-- Flex tasks -->
 		<property name="FLEX_HOME" value="${flex.sdk.home}" />
@@ -34,67 +34,67 @@
 		
 		<!-- FlexUnit -->
 		<taskdef resource="flexUnitTasks.tasks" 
-				 classpath="${libs.dir}/flexUnitTasks-4.1.0_RC2-4.jar" />
+				 classpath="${libs.loc}/flexUnitTasks-4.1.0_RC2-4.jar" />
 		
 		<!-- FlexCPD -->
 		<property name="flexpmd.version" value="1.2" />
 		<taskdef name="flexcpd" classname="com.adobe.ac.cpd.ant.FlexCpdAntTask"
-			 	 classpath="${libs.dir}/flex-pmd-cpd-ant-task-${flexpmd.version}.jar">
+			 	 classpath="${libs.loc}/flex-pmd-cpd-ant-task-${flexpmd.version}.jar">
 			<classpath>
-				<pathelement location="${libs.dir}/flex-pmd-files-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/flex-pmd-cpd-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/as3-plugin-utils-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/as3-parser-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/as3-parser-api-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/pmd-4.2.5.jar" />
+				<pathelement location="${libs.loc}/flex-pmd-files-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/flex-pmd-cpd-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/as3-plugin-utils-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/as3-parser-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/as3-parser-api-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/pmd-4.2.5.jar" />
 			</classpath>
 		</taskdef>
 		
 		<!-- FlexPMD -->
 		<taskdef name="flexpmd" classname="com.adobe.ac.pmd.ant.FlexPmdAntTask"
-				 classpath="${libs.dir}/flex-pmd-ant-task-${flexpmd.version}.jar">
+				 classpath="${libs.loc}/flex-pmd-ant-task-${flexpmd.version}.jar">
 			<classpath>
-		    	<pathelement location="${libs.dir}/flex-pmd-core-${flexpmd.version}.jar" />
-		    	<pathelement location="${libs.dir}/flex-pmd-files-${flexpmd.version}.jar" />
-		    	<pathelement location="${libs.dir}/flex-pmd-ruleset-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/as3-plugin-utils-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/as3-parser-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/as3-parser-api-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/commons-lang-2.4.jar" />
-				<pathelement location="${libs.dir}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/pmd-4.2.5.jar" />
+		    	<pathelement location="${libs.loc}/flex-pmd-core-${flexpmd.version}.jar" />
+		    	<pathelement location="${libs.loc}/flex-pmd-files-${flexpmd.version}.jar" />
+		    	<pathelement location="${libs.loc}/flex-pmd-ruleset-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/as3-plugin-utils-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/as3-parser-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/as3-parser-api-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/commons-lang-2.4.jar" />
+				<pathelement location="${libs.loc}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/pmd-4.2.5.jar" />
 			</classpath>
 		</taskdef>
 		
 		<!-- FlexMetrics -->
 		<taskdef name="flexmetrics" classname="com.adobe.ac.pmd.metrics.ant.FlexMetricsAntTask"
-		       classpath="${libs.dir}/flex-pmd-metrics-ant-task-${flexpmd.version}.jar">
+		       classpath="${libs.loc}/flex-pmd-metrics-ant-task-${flexpmd.version}.jar">
 			<classpath>
-		    	<pathelement location="${libs.dir}/flex-pmd-files-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/flex-pmd-metrics-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/as3-plugin-utils-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/as3-parser-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/as3-parser-api-${flexpmd.version}.jar" />
-				<pathelement location="${libs.dir}/commons-lang-2.4.jar" />
-				<pathelement location="${libs.dir}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
-		        <pathelement location="${libs.dir}/pmd-4.2.5.jar" />
-		      	<pathelement location="${libs.dir}/dom4j-1.6.1.jar"/>
+		    	<pathelement location="${libs.loc}/flex-pmd-files-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/flex-pmd-metrics-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/as3-plugin-utils-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/as3-parser-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/as3-parser-api-${flexpmd.version}.jar" />
+				<pathelement location="${libs.loc}/commons-lang-2.4.jar" />
+				<pathelement location="${libs.loc}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
+		        <pathelement location="${libs.loc}/pmd-4.2.5.jar" />
+		      	<pathelement location="${libs.loc}/dom4j-1.6.1.jar"/>
 		     </classpath>
 		</taskdef>
 	</target>
 	
 	<!-- Remove build artifacts -->
 	<target name="clean" depends="-init" description="Remove build artifacts">
-		<delete dir="${build.dir}" />
+		<delete dir="${build.loc}" />
 	</target>
 	
 	<!-- Setup build artifacts directories -->
 	<target name="-prepare" depends="clean">
-		<mkdir dir="${build.dir}" />
-		<mkdir dir="${build.release.dir}" />
-		<mkdir dir="${build.analysis.dir}" />
-		<mkdir dir="${build.test.dir}" />
-		<mkdir dir="${build.test.reports.dir}" />
+		<mkdir dir="${build.loc}" />
+		<mkdir dir="${build.release.loc}" />
+		<mkdir dir="${build.analysis.loc}" />
+		<mkdir dir="${build.test.loc}" />
+		<mkdir dir="${build.test.reports.loc}" />
 	</target>
 	
 	<!-- Run all tests and create a debug build of the library -->
@@ -106,9 +106,9 @@
 	
 	<!-- Generate API Documentation -->
 	<target name="doc-api" depends="-prepare" description="Generates API Documentation">
-		<asdoc output="${build.api.dir}" lenient="false" failonerror="true">
-			<doc-sources path-element="${src.dir}" />
-			<external-library-path file="${libs.dir}/tbyrne.swc" /> 
+		<asdoc output="${build.api.loc}" lenient="false" failonerror="true">
+			<doc-sources path-element="${src.loc}" />
+			<external-library-path file="${libs.loc}/tbyrne.swc" /> 
         </asdoc> 
 	</target>
 	
@@ -119,7 +119,7 @@
 				  value="${version.major.num}.${version.major.num}.${version.build.num}" />
 		<property name="snapshot.file" 
 				  value="${release.name}-${build.version.full.num}_SNAPSHOT.swc" />
-		<compileswc file="${build.release.dir}/${snapshot.file}" debug="true" />
+		<compileswc file="${build.release.loc}/${snapshot.file}" debug="true" />
 	</target>
 	
 	<!-- Build a release swc for the current library -->
@@ -148,20 +148,20 @@
 	
 	<!-- Run all tests -->
 	<target name="test" depends="-prepare" description="Run all tests">
-		<flexunit workingDir="${build.test.dir}" toDir="${build.test.reports.dir}" 
+		<flexunit workingDir="${build.test.loc}" toDir="${build.test.reports.loc}" 
 				  haltonfailure="true" verbose="false" localTrusted="true">
-			<source dir="${src.dir}" />
-		    <testSource dir="${test.src.dir}">
+			<source dir="${src.loc}" />
+		    <testSource dir="${test.src.loc}">
 				<!--<include name="**/*Test.as" />-->
 				<include name="ExampleTest.as" />
 			</testSource>
-			<library dir="${libs.dir}" />
+			<library dir="${libs.loc}" />
 		</flexunit>
-		<junitreport todir="${build.test.reports.dir}">
-			<fileset dir="${build.test.reports.dir}">
+		<junitreport todir="${build.test.reports.loc}">
+			<fileset dir="${build.test.reports.loc}">
 				<include name="TEST-*.xml" />
 			</fileset>
-			<report format="frames" todir="${build.test.reports.dir}/html" />
+			<report format="frames" todir="${build.test.reports.loc}/html" />
 		</junitreport>
 	</target>
 	
@@ -171,8 +171,8 @@
 	
 	<!-- Run CPD Analysis -->
     <target name="analyse-cpd" depends="-prepare" description="Runs CPD Analysis">
-    	<flexcpd minimumTokenCount="50" outputFile="${build.analysis.dir}/cpd.xml">
-        	<fileset dir="${src.dir}">
+    	<flexcpd minimumTokenCount="50" outputFile="${build.analysis.loc}/cpd.xml">
+        	<fileset dir="${src.loc}">
             	<include name="**/*.as"/>
           	</fileset>
        	</flexcpd>
@@ -180,12 +180,12 @@
 	
 	<!-- Run Metrics Analysis -->
 	<target name="analyse-metrics" depends="-prepare" description="Run Metrics Analysis">
-		<flexmetrics sourcedirectory="${src.dir}" outputfile="${build.analysis.dir}/metrics.xml"/>
+		<flexmetrics sourcedirectory="${src.loc}" outputfile="${build.analysis.loc}/metrics.xml"/>
 	</target>
 	
 	<!-- Run PMD Analysis -->
 	<target name="analyse-pmd" depends="-prepare" description="Run PMD Analysis">
-		<flexpmd sourceDirectory="${src.dir}" outputDirectory="${build.analysis.dir}/pmd" />
+		<flexpmd sourceDirectory="${src.loc}" outputDirectory="${build.analysis.loc}/pmd" />
 				 <!--ruleset="${basedir}/pmd-ruleset.xml" />-->
 	</target>
 	
@@ -198,16 +198,16 @@
 			<property name="release.full.name" 
 					  value="${release.name}-@{major}.@{minor}.@{build}" />
 			<property name="release.swc.file" 
-					  value="${build.release.dir}/${release.full.name}.swc" />
+					  value="${build.release.loc}/${release.full.name}.swc" />
 			
 			<compileswc file="${release.swc.file}" />
 			
 			<!-- TODO: Examples, example projects, docs, etc. also should this be its own target or 
 				macro? think of the dependencies of this macro -->
-			<zip destfile="${build.release.dir}/${release.full.name}.zip">
+			<zip destfile="${build.release.loc}/${release.full.name}.zip">
 				<zipfileset file="${release.swc.file}" />
-				<zipfileset file="${libs.dir}/tbyrne.swc" />
-				<zipfileset dir="${build.api.dir}" prefix="doc/api" />
+				<zipfileset file="${libs.loc}/tbyrne.swc" />
+				<zipfileset dir="${build.api.loc}" prefix="doc/api" />
 			</zip>
 			
 			<propertyoffset name="next.version.build.num" value="@{build}" offset="1" />
@@ -221,9 +221,9 @@
 		<attribute name="debug" default="false" />
 		<sequential>
 			<compc output="@{file}" debug="@{debug}">
-				<source-path path-element="${src.dir}" />			
-				<include-sources dir="${src.dir}" includes="**/*.as" />			
-				<external-library-path dir="${libs.dir}">
+				<source-path path-element="${src.loc}" />			
+				<include-sources dir="${src.loc}" includes="**/*.as" />			
+				<external-library-path dir="${libs.loc}">
 					<include name="*.swc"/>
 				</external-library-path>
 				<load-config filename="${config.flex}" />
@@ -256,7 +256,7 @@
 		<attribute name="operation" default="+" />
 		<sequential>
 			<tempfile property="propertyoffset.@{name}" deleteonexit="true" 
-					  destdir="${build.dir}" />
+					  destdir="${build.loc}" />
 			<propertyfile file="${propertyoffset.@{name}}">
 		    	<entry key="@{name}" type="int" default="@{value}" operation="@{operation}"
 		    		   value="@{offset}" />
