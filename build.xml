@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="site_stream" default="all">
-	<!-- TODO:  FlexPMD 
-				flex unit test coverage?
-				asdoc -->
+	<!-- TODO: flex unit test coverage? -->
 	<!-- Sets up all required build properties -->
 	<target name="-init">
 		<!-- External props -->
@@ -102,9 +100,17 @@
 	</target>
 	
 	<!-- Run all tests and create a debug build of the library -->
-	<target name="all" depends="test,analyse,build" 
+	<target name="all" depends="test,analyse,doc-api,build" 
 			description="Run all tests and create a debug build of the library" />
-		
+	
+	<!-- Generate API Documentation -->
+	<target name="doc-api" depends="-prepare" description="Generates API Documentation">
+		<asdoc output="${build.dir}/api" lenient="false" failonerror="true">
+			<doc-sources path-element="${src.dir}" />
+			<external-library-path file="${libs.dir}/tbyrne.swc" /> 
+        </asdoc> 
+	</target>
+	
 	<!-- Create a debug build of the library -->
 	<target name="build" depends="-prepare" 
 		description="Create a debug build of the library">
