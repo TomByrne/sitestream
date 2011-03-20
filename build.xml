@@ -8,9 +8,6 @@
 	    <property file="${basedir}/build.user.properties" />
 	    <property file="${basedir}/build.properties" />
 		
-		<!-- Flex SDK -->
-		<property name="flex.sdk.lib" value="${flex.sdk.home}/lib" />
-		
 		<!-- General Source -->
 		<property name="src.dir" value="${basedir}/siteStreamSrc" />
 		<property name="test.src.dir" value="${basedir}/testSrc" />
@@ -25,6 +22,7 @@
 		<!-- General Build -->
 		<property name="release.name" value="SiteStream" />
 		<property name="build.dir" value="${basedir}/build" />
+		<property name="build.api.dir" value="${build.dir}/api" />
 		<property name="build.release.dir" value="${build.dir}/release" />
 		<property name="build.analysis.dir" value="${build.dir}/analysis" />
 		<property name="build.test.dir" value="${build.dir}/test" />
@@ -100,12 +98,15 @@
 	</target>
 	
 	<!-- Run all tests and create a debug build of the library -->
-	<target name="all" depends="test,analyse,doc-api,build" 
+	<target name="all" depends="test,analyse,doc,build" 
 			description="Run all tests and create a debug build of the library" />
+	
+	<!-- Generate all documentation -->
+	<target name="doc" depends="doc-api" description="Generate all documentation" />
 	
 	<!-- Generate API Documentation -->
 	<target name="doc-api" depends="-prepare" description="Generates API Documentation">
-		<asdoc output="${build.dir}/api" lenient="false" failonerror="true">
+		<asdoc output="${build.api.dir}" lenient="false" failonerror="true">
 			<doc-sources path-element="${src.dir}" />
 			<external-library-path file="${libs.dir}/tbyrne.swc" /> 
         </asdoc> 
@@ -122,13 +123,14 @@
 	</target>
 	
 	<!-- Build a release swc for the current library -->
-	<target name="release" depends="test" description="Build a release swc for the current library">
+	<target name="release" depends="test,doc" 
+		description="Build a release swc for the current library">
 		<release major="${version.major.num}" minor="${version.minor.num}" 
 				 build="${version.build.num}" />
 	</target>
 	
 	<!-- Build a minor release swc for the current library -->
-	<target name="release-minor" depends="test" 
+	<target name="release-minor" depends="test,doc" 
 			description="Build a new minor release swc for the current library">
 		<propertyoffset name="next.version.minor.num" value="${version.minor.num}" 
 						offset="1" />
@@ -137,7 +139,7 @@
 	</target>
 	
 	<!-- Build a major release swc for the current library -->
-	<target name="release-major" depends="test" 
+	<target name="release-major" depends="test,doc" 
 			description="Build a new major release swc for the current library">
 		<propertyoffset name="next.version.major.num" value="${version.major.num}" 
 						offset="1" />
@@ -163,18 +165,6 @@
 		</junitreport>
 	</target>
 	
-	<!-- Releases the current version of the library under the given numbering -->
-	<macrodef name="release">
-		<attribute name="major" />
-		<attribute name="minor" />
-		<attribute name="build" />
-		<sequential>
-			<compileswc file="${build.release.dir}/${release.name}-@{major}.@{minor}.@{build}.swc" />
-			<propertyoffset name="next.version.build.num" value="@{build}" offset="1" />
-			<saveversion major="@{major}" minor="@{minor}" build="${next.version.build.num}" />
-		</sequential>
-	</macrodef>
-	
 	<!-- Run all analysis -->
 	<target name="analyse" depends="analyse-cpd,analyse-metrics,analyse-pmd"
 			description="Run all analysis" />
@@ -198,6 +188,32 @@
 		<flexpmd sourceDirectory="${src.dir}" outputDirectory="${build.analysis.dir}/pmd" />
 				 <!--ruleset="${basedir}/pmd-ruleset.xml" />-->
 	</target>
+	
+	<!-- Releases the current version of the library under the given numbering -->
+	<macrodef name="release">
+		<attribute name="major" />
+		<attribute name="minor" />
+		<attribute name="build" />
+		<sequential>
+			<property name="release.full.name" 
+					  value="${release.name}-@{major}.@{minor}.@{build}" />
+			<property name="release.swc.file" 
+					  value="${build.release.dir}/${release.full.name}.swc" />
+			
+			<compileswc file="${release.swc.file}" />
+			
+			<!-- TODO: Examples, example projects, docs, etc. also should this be its own target or 
+				macro? think of the dependencies of this macro -->
+			<zip destfile="${build.release.dir}/${release.full.name}.zip">
+				<zipfileset file="${release.swc.file}" />
+				<zipfileset file="${libs.dir}/tbyrne.swc" />
+				<zipfileset dir="${build.api.dir}" prefix="doc/api" />
+			</zip>
+			
+			<propertyoffset name="next.version.build.num" value="@{build}" offset="1" />
+			<saveversion major="@{major}" minor="@{minor}" build="${next.version.build.num}" />
+		</sequential>
+	</macrodef>
 	
 	<!-- Compile swc version of the library -->
 	<macrodef name="compileswc">
