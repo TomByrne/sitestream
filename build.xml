@@ -6,7 +6,12 @@
 		<!-- External props -->
 		<property environment="env"/>
 	    <property file="${basedir}/build.user.properties" />
-	    <property file="${basedir}/build.properties" />
+		<property name="build.properties.loc" location="${basedir}/build.properties" />
+	    <property file="${build.properties.loc}" />
+		
+		<!-- flex.sdk.loc should point to the root directory of the flex sdk, 4.5.0
+			 to override the FLEX_HOME environment variable, use the build.user.properties file -->
+		<property name="flex.sdk.loc" value="${env.FLEX_HOME}" />
 		
 		<!-- General Source -->
 		<property name="src.loc" location="${basedir}/siteStreamSrc" />
@@ -16,21 +21,22 @@
 		<!-- Build Config -->
 		<property name="config.loc" location="${basedir}/config" />
 		<property name="config.flex" value="${config.loc}/flex-config.xml" />
-		<property name="config.version.properties" value="${config.loc}/version.properties" />
-		<property file="${config.version.properties}" />
 		
 		<!-- General Build -->
-		<property name="release.name" value="SiteStream" />
 		<property name="build.loc" location="${basedir}/build" />
 		<property name="build.api.loc" location="${build.loc}/api" />
 		<property name="build.release.loc" location="${build.loc}/release" />
+		<property name="build.release.compile.loc" 
+				  location="${build.release.loc}/${build.name}-${build.version}_${build.num}.swc" />
+		<property name="build.release.package.loc" 
+				  location="${build.release.loc}/${build.name}-${build.version}_${build.num}.zip" />
 		<property name="build.analysis.loc" location="${build.loc}/analysis" />
 		<property name="build.test.loc" location="${build.loc}/test" />
 		<property name="build.test.reports.loc" location="${build.test.loc}/reports" />
 		
 		<!-- Flex tasks -->
-		<property name="FLEX_HOME" value="${flex.sdk.home}" />
-		<taskdef resource="flexTasks.tasks" classpath="${flex.sdk.home}/ant/lib/flexTasks.jar" />
+		<property name="FLEX_HOME" value="${flex.sdk.loc}" />
+		<taskdef resource="flexTasks.tasks" classpath="${flex.sdk.loc}/ant/lib/flexTasks.jar" />
 		
 		<!-- FlexUnit -->
 		<taskdef resource="flexUnitTasks.tasks" 
@@ -98,8 +104,8 @@
 	</target>
 	
 	<!-- Run all tests and create a debug build of the library -->
-	<target name="all" depends="test,analyse,doc,build" 
-			description="Run all tests and create a debug build of the library" />
+	<target name="all" depends="test,analyse,doc,package" 
+			description="Run all tests and create a package of the library" />
 	
 	<!-- Generate all documentation -->
 	<target name="doc" depends="doc-api" description="Generate all documentation" />
@@ -112,38 +118,44 @@
         </asdoc> 
 	</target>
 	
-	<!-- Create a debug build of the library -->
-	<target name="build" depends="-prepare" 
-		description="Create a debug build of the library">
-		<property name="build.version.full.num" 
-				  value="${version.major.num}.${version.major.num}.${version.build.num}" />
-		<property name="snapshot.file" 
-				  value="${release.name}-${build.version.full.num}_SNAPSHOT.swc" />
-		<compileswc file="${build.release.loc}/${snapshot.file}" debug="true" />
+	<!-- Creates an SWC of the library -->
+	<target name="compile" depends="-prepare" 
+			description="Create an SWC of the library">
+		<compileswc file="${build.release.compile.loc}" />
+		<propertyfile file="${build.properties.loc}">
+	        <entry key="build.num" default="0" value="1" type="int" operation="+" />
+	    </propertyfile>
 	</target>
 	
-	<!-- Build a release swc for the current library -->
-	<target name="release" depends="test,doc" 
-		description="Build a release swc for the current library">
-		<release major="${version.major.num}" minor="${version.minor.num}" 
-				 build="${version.build.num}" />
+	<!-- Creates a debug SWC of the library -->
+	<target name="compile-debug" depends="-prepare" 
+			description="Create a debug SWC of the library">
+		<compileswc file="${build.release.compile.loc}" debug="true" />
+		<propertyfile file="${build.properties.loc}">
+	        <entry key="build.num" default="0" value="1" type="int" operation="+" />
+	    </propertyfile>
 	</target>
 	
-	<!-- Build a minor release swc for the current library -->
-	<target name="release-minor" depends="test,doc" 
-			description="Build a new minor release swc for the current library">
-		<propertyoffset name="next.version.minor.num" value="${version.minor.num}" 
-						offset="1" />
-		<release major="${version.major.num}" minor="${next.version.minor.num}" 
-				 build="0" />
+	<!-- Creates a full distributable package -->
+	<target name="package" depends="doc,compile">
+		<!-- TODO: Examples, example projects, docs, etc. -->
+		<zip destfile="${build.release.package.loc}">
+			<zipfileset file="${build.release.compile.loc}" 
+						fullpath="${build.name}-${build.version}.swc" />
+			<zipfileset file="${libs.loc}/tbyrne.swc" />
+			<zipfileset dir="${build.api.loc}" prefix="doc/api" />
+		</zip>
 	</target>
 	
-	<!-- Build a major release swc for the current library -->
-	<target name="release-major" depends="test,doc" 
-			description="Build a new major release swc for the current library">
-		<propertyoffset name="next.version.major.num" value="${version.major.num}" 
-						offset="1" />
-		<release major="${next.version.major.num}" minor="0" build="0" />
+	<!-- Build a release package for the current library -->
+	<target name="release" depends="test,package" 
+		description="Build a release package for the current library">
+		<move file="${build.release.compile.loc}" 
+			  tofile="${build.release.loc}/${build.name}-${build.version}.swc" />
+		<move file="${build.release.package.loc}" 
+					  tofile="${build.release.loc}/${build.name}-${build.version}.zip" />
+		<!-- TODO: make a git tag -->
+		<!-- TODO: Upload to github downloads? -->
 	</target>
 	
 	<!-- Run all tests -->
@@ -189,32 +201,6 @@
 				 <!--ruleset="${basedir}/pmd-ruleset.xml" />-->
 	</target>
 	
-	<!-- Releases the current version of the library under the given numbering -->
-	<macrodef name="release">
-		<attribute name="major" />
-		<attribute name="minor" />
-		<attribute name="build" />
-		<sequential>
-			<property name="release.full.name" 
-					  value="${release.name}-@{major}.@{minor}.@{build}" />
-			<property name="release.swc.file" 
-					  value="${build.release.loc}/${release.full.name}.swc" />
-			
-			<compileswc file="${release.swc.file}" />
-			
-			<!-- TODO: Examples, example projects, docs, etc. also should this be its own target or 
-				macro? think of the dependencies of this macro -->
-			<zip destfile="${build.release.loc}/${release.full.name}.zip">
-				<zipfileset file="${release.swc.file}" />
-				<zipfileset file="${libs.loc}/tbyrne.swc" />
-				<zipfileset dir="${build.api.loc}" prefix="doc/api" />
-			</zip>
-			
-			<propertyoffset name="next.version.build.num" value="@{build}" offset="1" />
-			<saveversion major="@{major}" minor="@{minor}" build="${next.version.build.num}" />
-		</sequential>
-	</macrodef>
-	
 	<!-- Compile swc version of the library -->
 	<macrodef name="compileswc">
 		<attribute name="file" />
@@ -227,41 +213,10 @@
 					<include name="*.swc"/>
 				</external-library-path>
 				<load-config filename="${config.flex}" />
-				<external-library-path dir="${flex.sdk.home}/frameworks/libs/player/10.0">
+				<external-library-path dir="${flex.sdk.loc}/frameworks/libs/player/10.0">
 					<include name="*.swc"/>
 				</external-library-path>
 			</compc>
-		</sequential>
-	</macrodef>
-	
-	<!-- Saves version info to the version properties file -->
-	<macrodef name="saveversion">
-		<attribute name="major" />
-		<attribute name="minor" />
-		<attribute name="build" />
-		<sequential>
-			<propertyfile file="${config.version.properties}">
-		    	<entry key="version.major.num" type="int" value="@{major}" operation="=" />
-	    		<entry key="version.minor.num" type="int" value="@{minor}" operation="=" />
-	    		<entry key="version.build.num" type="int" value="@{build}" operation="=" />
-	    	</propertyfile>
-		</sequential>
-	</macrodef>
-	
-	<!-- Offset a given value and assign result to a property -->
-	<macrodef name="propertyoffset">
-		<attribute name="name" />
-		<attribute name="value" />
-		<attribute name="offset" />
-		<attribute name="operation" default="+" />
-		<sequential>
-			<tempfile property="propertyoffset.@{name}" deleteonexit="true" 
-					  destdir="${build.loc}" />
-			<propertyfile file="${propertyoffset.@{name}}">
-		    	<entry key="@{name}" type="int" default="@{value}" operation="@{operation}"
-		    		   value="@{offset}" />
-		    </propertyfile>
-			<property file="${propertyoffset.@{name}}" />
 		</sequential>
 	</macrodef>
 </project>

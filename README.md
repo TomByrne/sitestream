@@ -19,6 +19,6 @@ Dependancies
 
 Build and Test Dependancies
 ---------------------------
-- Flex SDK 4.1.0
+- Flex SDK 4.5.0
 - FlexUnit 4.1.0 RC2
 - FlexPMD 1.2
