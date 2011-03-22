@@ -69,6 +69,7 @@
 				<pathelement location="${libs.loc}/commons-lang-2.4.jar" />
 				<pathelement location="${libs.loc}/flex-pmd-ruleset-api-${flexpmd.version}.jar" />
 		        <pathelement location="${libs.loc}/pmd-4.2.5.jar" />
+		        <pathelement location="${libs.loc}/plexus-utils-1.0.2.jar" />
 			</classpath>
 		</taskdef>
 		
