@@ -116,12 +116,14 @@ package org.tbyrne.siteStream.xml
 				
 				
 				var nodeName:String = xml.localName();
-				classPath = nodeName;
-				if(packageName && classPath)classPath = packageName+classPath;
-				
-				if((!parentPropName || !parentPropName.length) && !ReflectionUtils.doesClassExist(classPath)){
-					parentPropName = nodeName;
-					classPath = null;
+				if(nodeName){
+					if(packageName){
+						classPath = packageName+nodeName;
+					}else if((!parentPropName || !parentPropName.length) && !ReflectionUtils.doesClassExist(nodeName)){
+						parentPropName = nodeName;
+					}else{
+						classPath = nodeName;
+					}
 				}
 			}
 			propDetails.parentSetter = parentPropName;
@@ -183,20 +185,22 @@ package org.tbyrne.siteStream.xml
 		private function createLibraries(xml:XML, nodeDetails:NodeDetails):void{
 			var attList:XMLList = xml.attribute(new QName(metadataNamespace,libsAttribute));
 			var eleList:XMLList = xml.child(new QName(metadataNamespace,libsAttribute));
-			var libs:Vector.<String> = new Vector.<String>();
-			nodeDetails.libraries = libs;
-			createChildren(nodeDetails,nodeDetails,attList,eleList,libs,false);
+			createChildren(nodeDetails,nodeDetails,attList,eleList,null,nodeDetails,false,"libraries");
+			nodeDetails.checkLibraries();
 		}
-		private function createChildren(parentProp:PropDetails,parentNode:NodeDetails, attList:XMLList, eleList:XMLList, parentObject:*, filterMetadata:Boolean):void{
-			if(!attList.length() && !eleList.length())return;
+		private function createChildren(parentProp:PropDetails, parentNode:NodeDetails, attList:XMLList, eleList:XMLList, simpleValue:*, parentObject:*, filterMetadata:Boolean, overrideParentSetter:String):void{
+			if(!simpleValue && !attList.length() && !eleList.length())return;
 			
 			var added:Vector.<PropDetails> = new Vector.<PropDetails>();
-			if(attList && attList.length())createChildList(attList,parentObject,added,filterMetadata);
-			if(eleList && eleList.length())createChildList(eleList,parentObject,added,filterMetadata);
+			createChildList(attList,eleList,simpleValue,parentObject,added,filterMetadata);
 			
 			if(added.length){
 				for each(var propDetails:PropDetails in added){
 					propDetails.parentObject = parentObject;
+					
+					if(overrideParentSetter){
+						propDetails.parentSetter = overrideParentSetter;
+					}
 					
 					var childNode:NodeDetails = (propDetails as NodeDetails);
 					
@@ -207,27 +211,39 @@ package org.tbyrne.siteStream.xml
 						if(refDetails)parentNode.addChildRef(refDetails);
 					}
 					if(propDetails.parentSetter){
-						parentNode.addChildProp(propDetails);
+						parentProp.addChildProp(propDetails);
 						reassessClassProp(propDetails.xml,propDetails,parentNode,parentObject);
 					}
 				}
 			}
 		}
-		private function createChildList(xmlList:XMLList, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
-			var parentClass:Class = (parentObject.constructor);
-			var isArray:Boolean = (parentClass == Array);
+		private function createChildList(attList:XMLList, eleList:XMLList,simpleValue:*, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
+			var doAtt:Boolean = (attList && attList.length());
+			var doEle:Boolean = (eleList && eleList.length());
 			
-			var isVector:Boolean;
-			var vectorType:String;
-			if(!isArray){
-				var vectorMatch:Object = VECTOR_TEST_1.exec(String(parentClass));
-				isVector = vectorMatch!=null;
-				if(isVector){
-					vectorType = vectorMatch[1];
-					if(vectorType=="*")vectorType = null;
+			if(doEle || doAtt || simpleValue!=null){
+				var parentClass:Class = (parentObject.constructor);
+				var isArray:Boolean = (parentClass == Array);
+				
+				var isVector:Boolean;
+				var vectorType:String;
+				if(!isArray){
+					var vectorMatch:Object = VECTOR_TEST_1.exec(String(parentClass));
+					isVector = vectorMatch!=null;
+					if(isVector){
+						vectorType = vectorMatch[1];
+						if(vectorType=="*")vectorType = null;
+					}
+				}
+				
+				if(doAtt)createChildListFromXML(attList,parentObject,added,filterMetadata,parentClass,isArray,isVector,vectorType);
+				if(doEle)createChildListFromXML(eleList,parentObject,added,filterMetadata,parentClass,isArray,isVector,vectorType);
+				if(simpleValue){
+					createChildListFromSimpleValue(simpleValue,parentObject,added,filterMetadata,parentClass,isArray,isVector,vectorType);
 				}
 			}
-			
+		}
+		private function createChildListFromXML(xmlList:XMLList, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean, vectorType:String):void{
 			var l:int = xmlList.length();
 			for(var i:int=0; i<l; ++i){
 				var memberXML:XML = xmlList[i];
@@ -239,42 +255,24 @@ package org.tbyrne.siteStream.xml
 				var nodeDetails:NodeDetails = assessNodeSummary(memberXML,null);
 				var propDetails:PropDetails = assessRefAndDetails(memberXML,nodeDetails);
 				if(propDetails){
-					var denyAdd:Boolean;
-					if((isArray || isVector) && propDetails.simpleValue!=null){
-						if(attemptLiteralParse(propDetails, nodeDetails, isArray, isVector, vectorType, added)){
-							denyAdd = true;
-						}
-					}
-					if(!denyAdd){
-						if(!nodeDetails && !propDetails.parentSetter && !propDetails.classPath){
-							// this happens with s:libs nodes, etc.
-							if(propDetails.simpleValue){
-								childListAdd(propDetails, nodeDetails, isArray, isVector, vectorType, added);
-							}
-							var attList:XMLList = memberXML.attributes();
-							var eleList:XMLList = memberXML.elements();
-							if(attList && attList.length())createChildList(attList,parentObject,added,filterMetadata);
-							if(eleList && eleList.length())createChildList(eleList,parentObject,added,filterMetadata);
-						}else{
-							childListAdd(propDetails, nodeDetails, isArray, isVector, vectorType, added);
-						}
-					}
+					childListAdd(propDetails, nodeDetails, isArray, isVector, vectorType, added);
 				}
 			}
 		}
-		private function attemptLiteralParse(propDetails:PropDetails, nodeDetails:NodeDetails, isArray:Boolean, isVector:Boolean, vectorType:String, added:Vector.<PropDetails>):Boolean{
-			var array:Array = StringParser.parseArray(propDetails.simpleValue);
-			var ret:Boolean;
+		private function createChildListFromSimpleValue(simpleValue:*, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean, vectorType:String):Boolean{
+			var array:Array = (simpleValue as Array) || StringParser.parseArray(simpleValue,false);
 			var subPropDetails:PropDetails;
-			if(array){
+			var ret:Boolean;
+			if(array && (isArray || isVector)){
 				ret = true;
 				for each(var value:* in array){
 					subPropDetails = PropDetails.getNew();
 					subPropDetails.simpleValue = value;
+					subPropDetails.classPath = vectorType;
 					childListAdd(subPropDetails, null, isArray, isVector, vectorType, added)
 				}
 			}else{
-				var object:Object = StringParser.parseObject(propDetails.simpleValue);
+				var object:Object = (typeof(simpleValue)=="object"?simpleValue:StringParser.parseObject(simpleValue,false));
 				if(object){
 					ret = true;
 					for(var prop:String in object){
@@ -333,69 +331,77 @@ package org.tbyrne.siteStream.xml
 				must be fully parsed for it's parent object's sake. Then (here) we analyse the
 				two variables to clean them up.
 			*/
-			var isClassRef:Boolean;
 			var parentPropName:String = propDetails.parentSetter;
 			var classPath:String = propDetails.classPath;
 			var hasParent:Boolean = (parentObject && parentPropName && parentPropName.length);
 			//var isWriteOnly:Boolean = false;
 			var varType:Class;
 			if(hasParent){
+				var parentProp:PropDetails = propDetails.parent;
+				var typeDesc:XML;
+				if(parentProp && parentProp.parentSetterIsMethod && propDetails.parentSetterIsMethod){
+					typeDesc = getTypeDescription(parentProp.parentObject);
+					varType = findParamType(typeDesc,parentProp.parentSetter,propDetails.parentSetterArgs[0]);
+				}else{
 				
-				var typeDesc:XML = getTypeDescription(parentObject);
-				
-				// Do the check for deep properties. i.e. s:prop="rootProp.parentProp.childProp"
-				var varPath: Array = parentPropName.split(".");
-				var parentTypeDesc: XML = typeDesc;
-				var dynamicMode:Boolean;
-				var typeName:String;
-				while (varPath.length > 0){
+					typeDesc = getTypeDescription(parentObject);
 					
-					var thisPropName:String = varPath.shift();
-					
-					varType = null;
-					if(parentTypeDesc){
-						typeName = getVariableType(parentTypeDesc, thisPropName);
-						if(typeName && typeName.length && typeName!="*"){
-							//typeName = typeName.replace("::",".");
-							varType = ReflectionUtils.getClassByName(typeName);
-							//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
+					// Do the check for deep properties. i.e. s:prop="rootProp.parentProp.childProp"
+					var varPath: Array = parentPropName.split(".");
+					var parentTypeDesc: XML = typeDesc;
+					var dynamicMode:Boolean;
+					var typeName:String;
+					while (varPath.length > 0){
+						
+						var thisPropName:String = varPath.shift();
+						
+						varType = null;
+						if(parentTypeDesc){
+							typeName = getVariableType(parentTypeDesc, thisPropName);
+							if(typeName && typeName.length && typeName!="*"){
+								//typeName = typeName.replace("::",".");
+								varType = ReflectionUtils.getClassByName(typeName);
+								//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
+							}
 						}
-					}
-					
-					if(!varPath.length && !propDetails.classPath){
-						typeName = typeDesc.@name;
-						var vectorMatch:Object = VECTOR_TEST_2.exec(typeName);
-						if(vectorMatch!=null){
-							propDetails.classPath = vectorMatch[1];
-							if(propDetails.classPath=="*")propDetails.classPath = null;
+						
+						if(!varPath.length && !propDetails.classPath){
+							typeName = typeDesc.@name;
+							var vectorMatch:Object = VECTOR_TEST_2.exec(typeName);
+							if(vectorMatch!=null){
+								propDetails.classPath = vectorMatch[1];
+								if(propDetails.classPath=="*")propDetails.classPath = null;
+							}
 						}
-					}
-					
-					if(!varType){
-						var value:* = parentObject[thisPropName];
-						if(value is Function){
-							propDetails.parentSetterIsMethod = true;
+						
+						if(!varType){
+							var value:* = parentObject[thisPropName];
+							if(value is Function){
+								propDetails.parentSetterIsMethod = true;
+								varType = Array;
+								//varType = findFirstParamType(parentTypeDesc, thisPropName);
+								break;
+							}else if(value){
+								varType = value.constructor;
+							}
+						}
+						
+						if(!varType && !typeName){
+							if(parentTypeDesc.@isDynamic.toString()!="true"){
+								var msg: String = "Couldn't map element \"" + thisPropName + "\"";
+								msg += " to object: "+ parentObject;
+								Log.error( "XmlReader.reassessClassProp: "+msg);
+							}
 							break;
-						}else if(value){
-							varType = value.constructor;
+						}else if(varPath.length){
+							parentTypeDesc = getTypeDescription(varType);
+							parentObject = parentObject[thisPropName];
 						}
 					}
-					
-					if(!varType && !typeName){
-						if(parentTypeDesc.@isDynamic.toString()!="true"){
-							var msg: String = "Couldn't map element \"" + thisPropName + "\"";
-							msg += " to object: "+ parentObject;
-							Log.error( "XmlReader.reassessClassProp: "+msg);
-						}
-						break;
-					}else if(varPath.length){
-						parentTypeDesc = getTypeDescription(varType);
-						parentObject = parentObject[thisPropName];
-					}
+					parentPropName = thisPropName;
 				}
-				parentPropName = thisPropName;
-				isClassRef = (varType==Class);
 			}
+			var isClassRef:Boolean = (varType==Class);
 			
 			propDetails.parentSetter = parentPropName;
 			propDetails.parentObject = parentObject;
@@ -421,6 +427,7 @@ package org.tbyrne.siteStream.xml
 						}else{
 							object = new XML(simpleValue);
 						}
+						simpleValue = null;
 						break;
 					case String:
 						if(simpleValue is String){
@@ -428,7 +435,8 @@ package org.tbyrne.siteStream.xml
 						}else{
 							object = String(simpleValue);
 						}
-						object = String(simpleValue);
+						simpleValue = null;
+						//object = String(simpleValue);
 						break;
 					case Number:
 						if(simpleValue is Number){
@@ -436,6 +444,7 @@ package org.tbyrne.siteStream.xml
 						}else{
 							object = StringParser.parseNumber(simpleValue,false);
 						}
+						simpleValue = null;
 						break;
 					case int:
 					case uint:
@@ -444,6 +453,7 @@ package org.tbyrne.siteStream.xml
 						}else{
 							object = int(StringParser.parseNumber(simpleValue,false));
 						}
+						simpleValue = null;
 						break;
 					case Boolean:
 						if(simpleValue is Boolean){
@@ -451,6 +461,7 @@ package org.tbyrne.siteStream.xml
 						}else{
 							object = (simpleValue=="true");
 						}
+						simpleValue = null;
 						break;
 					case Function:
 						if(simpleValue is Function){
@@ -473,6 +484,7 @@ package org.tbyrne.siteStream.xml
 								}
 							}
 						}
+						simpleValue = null;
 						break;
 					default:
 						object = propDetails.object;
@@ -480,35 +492,36 @@ package org.tbyrne.siteStream.xml
 							if(!object || !(object is type)){
 								object = new type();
 							}
-						}
-						if(simpleValue){
-							if(simpleValue is String){
-								simpleValue = StringParser.parse(simpleValue);
-							}
-							if(simpleValue is Object){
-								if(object){
-									for(var i:* in simpleValue){
-										object[i] = simpleValue[i];
-									}
-								}else{
-									object = simpleValue;
-								}
-							}else{
-								object = simpleValue;
-							}
+						}else if(simpleValue){
+							object = StringParser.parse(simpleValue,false);
 						}
 				}
 			}
-			if(xml){
-				var attList:XMLList = xml.attributes();
-				var eleList:XMLList = xml.elements();
-				createChildren(propDetails,parentNode,attList,eleList,object,true);
+			if(xml || simpleValue){
+				var attList:XMLList;
+				var eleList:XMLList;
+				if(xml){
+					attList = xml.attributes();
+					eleList = xml.elements();
+				}
+				createChildren(propDetails,parentNode,attList,eleList,simpleValue,object,true,null);
 			}
 			
 			propDetails.committed = false;
 			propDetails.object = object;
 		}
 		
+		protected function findParamType(typeDesc:XML, methodName:String, paramIndex:int):Class{
+			var methodXML:XMLList = typeDesc..method.(@name.toString()==methodName);
+			if(methodXML.length()){
+				var paramXML:XMLList = methodXML.parameter.(@index.toString()==(paramIndex+1).toString());
+				if(paramXML.length()){
+					var paramType:String = paramXML.@type;
+					if(paramType!="*")return ReflectionUtils.getClassByName(paramType);
+				}
+			}
+			return null;
+		}
 		
 		
 		protected function getChildWithNS(xml:XML, attName:String, metadataNamespace:Namespace):XMLList{
@@ -646,7 +659,7 @@ package org.tbyrne.siteStream.xml
 						}
 					}
 				}else{
-					args = [prop.object];
+					args = prop.object;
 				}
 				prop.parentObject[prop.parentSetter].apply(null,args);
 			}else{
@@ -791,13 +804,6 @@ class NodeDetails extends PropDetails implements IXmlNodeSummary, IXmlNodeDetail
 	}
 	public function set libraries(value:Vector.<String>):void{
 		_libraries = value;
-		
-		_detailsBundle.clearProps();
-		if(_libraries){
-			for each(var propDetails:PropDetails in _childProps){
-				if(propDetails.parentObject==_libraries)_detailsBundle.addProp(propDetails);
-			}
-		}
 	}
 	override public function set object(value:*):void{
 		super.object = value;
@@ -844,6 +850,19 @@ class NodeDetails extends PropDetails implements IXmlNodeSummary, IXmlNodeDetail
 		}
 		if(_libraries && childProp.parentObject==_libraries){
 			_detailsBundle.addProp(childProp);
+		}
+	}
+	
+	public function checkLibraries():void{
+		
+		_detailsBundle.clearProps();
+		
+		for each(var propDetails:PropDetails in _childProps){
+			if(propDetails.parentObject==this && 
+				propDetails.parentSetter=="libraries"){
+				
+				_detailsBundle.addProp(propDetails);
+			}
 		}
 	}
 	protected function onDetailsRequested(from:InterpretBundle):void{

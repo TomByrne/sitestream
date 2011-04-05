@@ -9,7 +9,7 @@ package org.tbyrne.siteStream.util
 		private static const HEX_NUMBER_CHECK:RegExp = /^[\dabcdef]+$/is;
 		
 		
-		public static function parse(string:String):*{
+		public static function parse(string:String, deepParse:Boolean=true):*{
 			var strippedStr:String = stripWhite(string);
 			if(strippedStr=="true"){
 				return true;
@@ -20,11 +20,11 @@ package org.tbyrne.siteStream.util
 			if(strippedStr=="NaN"){
 				return NaN;
 			}
-			var array:Array = _parseArray(strippedStr);
+			var array:Array = _parseArray(strippedStr,deepParse);
 			if(array){
 				return array;
 			}
-			var object:Object = _parseObject(strippedStr);
+			var object:Object = _parseObject(strippedStr,deepParse);
 			if(object){
 				return object;
 			}
@@ -59,27 +59,34 @@ package org.tbyrne.siteStream.util
 			}
 			return NaN;
 		}
-		public static function parseArray(string:String):Array{
+		public static function parseArray(string:String, deepParse:Boolean=true):Array{
 			string = stripWhite(string);
-			return _parseArray(string);
+			return _parseArray(string,deepParse);
 		}
-		private static function _parseArray(string:String):Array{
+		private static function _parseArray(string:String, deepParse:Boolean):Array{
 			var lastChar:int = string.length-1;
 			if(string.charAt(0)=="[" && string.charAt(lastChar)=="]"){
 				var array:Vector.<String> = parseCSV(string.substring(1,string.length-1));
 				var ret:Array = [];
-				for each(var value:String in array){
-					ret.push(parse(value));
+				var value:String;
+				if(deepParse){
+					for each(value in array){
+						ret.push(parse(value));
+					}
+				}else{
+					for each(value in array){
+						ret.push(value);
+					}
 				}
 				return ret;
 			}
 			return null;
 		}
-		public static function parseObject(string:String):Object{
+		public static function parseObject(string:String, deepParse:Boolean=true):Object{
 			string = stripWhite(string);
-			return _parseObject(string);
+			return _parseObject(string,deepParse);
 		}
-		private static function _parseObject(string:String):Object{
+		private static function _parseObject(string:String, deepParse:Boolean):Object{
 			var lastChar:int = string.length-1;
 			if(string.charAt(0)=="{" && string.charAt(lastChar)=="}"){
 				var props:Vector.<String> = parseCSV(string.substring(1,string.length-1));
@@ -89,7 +96,8 @@ package org.tbyrne.siteStream.util
 					if(pair.length!=2){
 						return null;
 					}else{
-						ret[pair[0]] = parse(pair[1]);
+						if(deepParse)ret[pair[0]] = parse(pair[1]);
+						else ret[pair[0]] = pair[1];
 					}
 				}
 				return ret;

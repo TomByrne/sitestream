@@ -1,9 +1,14 @@
 package org.tbyrne.siteStream.objectTests
 {
 	import org.tbyrne.siteStream.AbstractXmlReaderTest;
+	import org.tbyrne.siteStream.TestObject;
 
 	public class TypedObjectLiteralTest extends AbstractXmlReaderTest
 	{
+		public function TypedObjectLiteralTest(){
+			var includeClass:Class = TestObject;
+		}
+		
 		override public function get xml():XML{
 			return <test:TestObject xmlns:test="org.tbyrne.siteStream" sprite="{x:10}"/>;
 		}

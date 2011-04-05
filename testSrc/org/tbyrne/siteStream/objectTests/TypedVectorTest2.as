@@ -1,9 +1,13 @@
 package org.tbyrne.siteStream.objectTests
 {
 	import org.tbyrne.siteStream.AbstractXmlReaderTest;
+	import org.tbyrne.siteStream.TestObject;
 
 	public class TypedVectorTest2 extends AbstractXmlReaderTest
 	{
+		public function TypedVectorTest2(){
+			var includeClass:TestObject;
+		}
 		override public function get xml():XML{
 			return 	<test:TestObject xmlns:test="org.tbyrne.siteStream" vector="[{property:0},{property:1}]"/>;
 		}

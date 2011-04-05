@@ -36,7 +36,6 @@ package
 												// details tests
 												new LibraryLiteralTest(),
 												new LibraryNodeTest1(),
-												new LibraryNodeTest2(),
 												new NestedNodeTest(),
 												
 												// object tests
@@ -50,8 +49,22 @@ package
 												new TypedObjectLiteralTest(),
 												new TypedArrayTest1(),
 												new TypedArrayTest2(),
-												new TypedVectorTest1(),*/
-												new TypedVectorTest2()
+												new TypedVectorTest1(),
+												new TypedVectorTest2(),
+												new TypedMethodSetterTest1(),
+												new UntypedMethodSetterTest1(),*/
+												new UntypedMethodSetterTest2(),
+												/*new AbsReferenceTest1(),
+												new AbsReferenceTest2(),
+												new RelReferenceTest1(),
+												new RelReferenceTest2(),
+												new ReferenceMethodTest1(),
+												new ReferenceMethodTest2(),
+												new TypedReferenceMethodTest1(),
+												new TypedReferenceMethodTest2(),
+												new ConstructorTest1(),
+												new ConstructorTest2(),
+												new FactoryTest1()*/
 												
 												]);
 			
