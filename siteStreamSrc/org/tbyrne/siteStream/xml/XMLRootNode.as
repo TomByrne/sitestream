@@ -94,8 +94,8 @@ import org.tbyrne.acting.actTypes.IAct;
 import org.tbyrne.acting.acts.Act;
 import org.tbyrne.siteStream.ISiteStreamNode;
 import org.tbyrne.siteStream.core.SiteStreamNodeProxy;
-import org.tbyrne.siteStream.xml.IXmlNodeDetails;
-import org.tbyrne.siteStream.xml.IXmlNodeSummary;
+import org.tbyrne.siteStream.core.ISSNodeDetails;
+import org.tbyrne.siteStream.core.ISSNodeSummary;
 import org.tbyrne.siteStream.xml.XmlReader;
 
 class XMLNode implements ISiteStreamNode{
@@ -153,10 +153,10 @@ class XMLNode implements ISiteStreamNode{
 		return _childNodes;
 	}
 	
-	public function get xmlSummary():IXmlNodeSummary{
+	public function get xmlSummary():ISSNodeSummary{
 		return _xmlSummary;
 	}
-	public function set xmlSummary(value:IXmlNodeSummary):void{
+	public function set xmlSummary(value:ISSNodeSummary):void{
 		if(_xmlSummary!=value){
 			releaseObject();
 			_xmlSummary = value;
@@ -181,13 +181,13 @@ class XMLNode implements ISiteStreamNode{
 	
 	protected var _urlLoader:URLLoader;
 	protected var _currentLibrary:Loader;
-	protected var _xmlSummary:IXmlNodeSummary;
-	protected var _xmlDetails:IXmlNodeDetails;
+	protected var _xmlSummary:ISSNodeSummary;
+	protected var _xmlDetails:ISSNodeDetails;
 	protected var _xmlDetailsUrl:String;
 	
 	protected var _libraries:Vector.<Loader>;
 	
-	public function XMLNode(xmlReader:XmlReader, xmlSummary:IXmlNodeSummary=null){
+	public function XMLNode(xmlReader:XmlReader, xmlSummary:ISSNodeSummary=null){
 		_xmlReader = xmlReader;
 		this.xmlSummary = xmlSummary;
 	}
@@ -229,11 +229,11 @@ class XMLNode implements ISiteStreamNode{
 	
 	
 	private function readXML():void{
-		var summary:IXmlNodeSummary = (_xmlDetails || _xmlSummary);
+		var summary:ISSNodeSummary = (_xmlDetails || _xmlSummary);
 		if(summary){
 			if(_xmlDetailsUrl && _objectRequested){
 				// newly loaded xml is again pointing to another XML file
-				_xmlDetailsUrl = summary.xmlUrl;
+				_xmlDetailsUrl = summary.url;
 				loadXML();
 			}else{
 				_childNodesInvalid = true;
@@ -310,10 +310,10 @@ class XMLNode implements ISiteStreamNode{
 	}
 	
 	private function parseXML():void{
-		var summary:IXmlNodeSummary = (_xmlDetails || _xmlSummary);
+		var summary:ISSNodeSummary = (_xmlDetails || _xmlSummary);
 		_object = _xmlReader.readObject(summary,_object);
 		
-		if(_xmlDetails || !_xmlSummary.xmlUrl){
+		if(_xmlDetails || !_xmlSummary.url){
 			setObjectReady(true);
 		}
 	}
@@ -323,7 +323,7 @@ class XMLNode implements ISiteStreamNode{
 		if(_xmlDetails && _xmlDetails.childNodes && _xmlDetails.childNodes.length){
 			_childNodes = new Vector.<ISiteStreamNode>();
 			_childNodesCast = new Vector.<XMLNode>();
-			for each(var nodeSummary:IXmlNodeSummary in _xmlDetails.childNodes) {
+			for each(var nodeSummary:ISSNodeSummary in _xmlDetails.childNodes) {
 				var xmlNode:XMLNode = new XMLNode(_xmlReader,nodeSummary);
 				_childNodes.push(xmlNode);
 				_childNodesCast.push(xmlNode);

@@ -1,5 +1,6 @@
 package org.tbyrne.siteStream
 {
+	import flash.display.IBitmapDrawable;
 	import flash.display.Sprite;
 
 	public class TestObject
@@ -26,6 +27,9 @@ package org.tbyrne.siteStream
 		}
 		public function setSprite(sprite:Sprite):void{
 			this.sprite = sprite;
+		}
+		public function setSpriteInt(sprite:IBitmapDrawable):void{
+			this.sprite = sprite as Sprite;
 		}
 		public function getProperty():*{
 			return property;

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<actionScriptProperties analytics="false" mainApplicationPath="XmlReaderTest.as" projectUUID="9d8ca8eb-8a21-4587-9a27-f04bf862a2fb" version="7">
+<actionScriptProperties analytics="false" mainApplicationPath="XmlReaderTester.as" projectUUID="9d8ca8eb-8a21-4587-9a27-f04bf862a2fb" version="7">
   <compiler additionalCompilerArguments="-load-config+=../config/flex-config.xml" autoRSLOrdering="false" copyDependentFiles="false" flexSDK="Flex 4.1" fteInMXComponents="false" generateAccessible="false" htmlExpressInstall="true" htmlGenerate="false" htmlHistoryManagement="true" htmlPlayerVersionCheck="true" includeNetmonSwc="false" outputFolderPath="bin-debug" sourceFolderPath="testSrc" strict="true" targetPlayerVersion="0.0.0" useApolloConfig="false" useDebugRSLSwfs="true" verifyDigests="true" warn="true">
     <compilerSourcePath>
       <compilerSourcePathEntry kind="1" linkType="1" path="testSrc"/>
@@ -26,7 +26,8 @@
     <sourceAttachmentPath/>
   </compiler>
   <applications>
-    <application path="XmlReaderTest.as"/>
+    <application path="JsonReaderTester.as"/>
+    <application path="XmlReaderTester.as"/>
   </applications>
   <modules/>
   <buildCSSFiles/>

@@ -1,5 +1,6 @@
 package org.tbyrne.siteStream.util
 {
+	import flash.utils.Dictionary;
 	
 
 	public class StringParser
@@ -7,6 +8,7 @@ package org.tbyrne.siteStream.util
 		private static const STRIPPER:RegExp = /^\s*(.*)\s*$/s;
 		private static const NUMBER_CHECK:RegExp = /^\d+$/s;
 		private static const HEX_NUMBER_CHECK:RegExp = /^[\dabcdef]+$/is;
+		private static const VALID_PROP_CHECK:RegExp = /\w+/;
 		
 		
 		public static function parse(string:String, deepParse:Boolean=true):*{
@@ -24,7 +26,7 @@ package org.tbyrne.siteStream.util
 			if(array){
 				return array;
 			}
-			var object:Object = _parseObject(strippedStr,deepParse);
+			var object:Object = _parseObject(strippedStr,deepParse,true);
 			if(object){
 				return object;
 			}
@@ -84,21 +86,35 @@ package org.tbyrne.siteStream.util
 		}
 		public static function parseObject(string:String, deepParse:Boolean=true):Object{
 			string = stripWhite(string);
-			return _parseObject(string,deepParse);
+			return _parseObject(string,deepParse,false);
 		}
-		private static function _parseObject(string:String, deepParse:Boolean):Object{
+		private static function _parseObject(string:String, deepParse:Boolean, tryDictionaries:Boolean):Object{
 			var lastChar:int = string.length-1;
 			if(string.charAt(0)=="{" && string.charAt(lastChar)=="}"){
 				var props:Vector.<String> = parseCSV(string.substring(1,string.length-1));
-				var ret:Object = {};
-				for each(var keyValue:String in props){
-					var pair:Vector.<String> = parseSeperatedList(keyValue,":");
+				var ret:Object;
+				var keyValue:String;
+				var pair:Vector.<String>;
+				if(tryDictionaries){
+					for each(keyValue in props){
+						pair = parseSeperatedList(keyValue,":");
+						if(pair.length!=2){
+							return null;
+						}else if(!VALID_PROP_CHECK.test(pair[0])){
+							ret = new Dictionary();
+							break;
+						}
+					}
+					if(!ret)ret = {};
+				}else{
+					ret = {};
+				}
+				for each(keyValue in props){
+					pair = parseSeperatedList(keyValue,":");
 					if(pair.length!=2){
 						return null;
-					}else{
-						if(deepParse)ret[pair[0]] = parse(pair[1]);
-						else ret[pair[0]] = pair[1];
-					}
+					}else if(deepParse)ret[pair[0]] = parse(pair[1]);
+					else ret[pair[0]] = pair[1];
 				}
 				return ret;
 			}

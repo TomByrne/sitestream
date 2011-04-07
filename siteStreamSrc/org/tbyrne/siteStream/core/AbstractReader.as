@@ -1,0 +1,600 @@
+package org.tbyrne.siteStream.core
+{
+	import flash.utils.Dictionary;
+	
+	import org.tbyrne.memory.LooseReference;
+	import org.tbyrne.reflection.ReflectionUtils;
+	import org.tbyrne.siteStream.util.StringParser;
+	import org.tbyrne.utils.methodClosure;
+	
+	public class AbstractReader
+	{
+		private static const NODE_REFERENCE_EXP:RegExp = /^\((\S*)\)$/;
+		private static const VECTOR_TEST:RegExp = /__AS3__\.vec::Vector\.<(.*)>/;
+		
+		//private static const PROP_REPLACE:Number = Math.random(); // a unique tag
+		
+		/**
+		 * Determines whether ISSNodeSummary and ISSNodeDetails objects should be
+		 * stored internally to link up reference nodes. If the Reader instance is
+		 * being used as a parsing utility for data with no references then
+		 * this can be set to false to reduce memory footprint. Internal references
+		 * to objects are loose references, meaning that if all other references to these
+		 * objects are removed then these too will be removed.
+		 * 
+		 */
+		public function get cacheResults():Boolean{
+			return _cacheResults;
+		}
+		public function set cacheResults(value:Boolean):void{
+			if(_cacheResults!=value){
+				_cacheResults = value;
+				if(value)_cache = new Dictionary();
+				else{
+					for each(var looseRef:LooseReference in _cache){
+						looseRef.release();
+					}
+					_cache = new Dictionary();
+				}
+			}
+		}
+		
+		public var pathIdAttribute:String = "path";
+		public var propAttribute:String = "id";
+		public var libsAttribute:String = "libs";
+		public var urlAttribute:String = "url";
+		public var metadataNamespace:Namespace;
+		
+		private var _cacheResults:Boolean;
+		
+		/* mapped xml > LooseReference(NodeDetails)
+		Note that multiple xml instances can reference the same NodeDetails object
+		*/
+		private var _cache:Dictionary;
+		
+		private var _interpretting:Dictionary;
+		
+		public function AbstractReader(cacheResults:Boolean=false){
+			this.cacheResults = cacheResults;
+			_cache = new Dictionary();
+			_interpretting = new Dictionary();
+		}
+		
+		
+		
+		
+		
+		protected function _readRootNode(data:Object):ISSNodeSummary{
+			var ret:NodeDetails = getNodeDetails(data);
+			assessNodeSummary(data,ret);
+			return ret;
+		}
+		protected function assessNodeSummary(data:Object, nodeDetails:NodeDetails):NodeDetails{
+			var pathId:String = getPathIdForData(data, nodeDetails);
+			if(pathId==null)return null;
+			
+			
+			if(!nodeDetails)nodeDetails = getNodeDetails(data);
+			nodeDetails.url = getUrlForData(data);
+			nodeDetails.pathId = pathId;
+			nodeDetails.data = data;
+			assessClassProp(data, nodeDetails); // allows us to know whether this node fills one of it's parent's props
+			
+			return nodeDetails;
+		}
+		protected function getPathIdForData(data:Object, nodeDetails:ISSNodeDetails):String{
+			// override me
+			throw new Error();
+		}
+		protected function getUrlForData(data:Object):String{
+			// override me
+			throw new Error();
+		}
+		protected function assessClassProp(data:Object, propDetails:PropDetails):void{
+			// override me
+			throw new Error();
+		}
+		
+		
+		
+		
+		
+		
+		protected function _readNodeDetails(data:Object, summary:ISSNodeSummary):IPendingSSResult{
+			var ret:NodeDetails = summary as NodeDetails;
+			ret.data = data;
+			assessRefAndDetails(data,ret);
+			return ret.detailsPending;
+		}
+		protected function assessRefAndDetails(data:Object, propDetails:PropDetails):PropDetails{
+			var useReference:Boolean = false;
+			var stringValue:String = getStringValue(data);
+			
+			if(stringValue && stringValue.length){
+				var refTest:Object = NODE_REFERENCE_EXP.test(stringValue);
+				if(refTest){
+					useReference = true;
+					stringValue = refTest[1];
+				}
+			}
+			
+			if(!propDetails){
+				if(useReference){
+					propDetails = ReferenceDetails.getNew();
+				}else{
+					propDetails = PropDetails.getNew();
+				}
+				propDetails.data = data;
+				assessClassProp(data, propDetails);
+			}else{
+				var nodeDetails:NodeDetails = (propDetails as NodeDetails);
+				if(nodeDetails){
+					createLibraries(data, nodeDetails);
+					createChildNodes(data, nodeDetails);
+				}
+			}
+			propDetails.simpleValue = stringValue;
+			
+			return propDetails;
+		}
+		protected function getStringValue(data:Object):String{
+			// override me
+			throw new Error();
+		}
+		protected function createLibraries(data:Object, nodeDetails:NodeDetails):void{
+			// override me
+			throw new Error();
+		}
+		protected function createChildListFromSimpleValue(simpleValue:*, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
+			var subPropDetails:PropDetails;
+			if(isArray || isVector){
+				var array:Array = (simpleValue as Array) || StringParser.parseArray(simpleValue,false);
+				if(array){
+					for each(var value:* in array){
+						subPropDetails = PropDetails.getNew();
+						subPropDetails.simpleValue = value;
+						//subPropDetails.classPath = vectorType;
+						childListAdd(subPropDetails, null, isArray, isVector, added)
+					}
+				}else{
+					subPropDetails = PropDetails.getNew();
+					subPropDetails.simpleValue = simpleValue;
+					//subPropDetails.classPath = vectorType;
+					childListAdd(subPropDetails, null, isArray, isVector, added)
+				}
+			}else{
+				var object:Object = (typeof(simpleValue)=="object"?simpleValue:StringParser.parseObject(simpleValue,false));
+				if(object){
+					for(var prop:String in object){
+						subPropDetails = PropDetails.getNew();
+						subPropDetails.parentSetter = prop;
+						subPropDetails.simpleValue = object[prop];
+						childListAdd(subPropDetails, null, isArray, isVector, added)
+					}
+				}
+			}
+		}
+		protected function childListAdd(propDetails:PropDetails, nodeDetails:NodeDetails, isArray:Boolean, isVector:Boolean, added:Vector.<PropDetails>):void{
+			if(!propDetails.parentSetter){
+				if(isArray || isVector){
+					propDetails.parentIsVector = isVector;
+					propDetails.parentSetter = added.length;
+					//propDetails.parentSetterIsMethod = true;
+					//propDetails.parentSetterIndex = added.length;
+					//propDetails.parentSetter = "splice";
+					//propDetails.parentSetterArgs = [added.length,0,PROP_REPLACE];
+					//if(isVector && !propDetails.classPath)propDetails.classPath = vectorType;
+				}
+			}
+			added.push(propDetails);
+		}
+		protected function createChildNodes(data:Object, nodeDetails:NodeDetails):void{
+			// override me
+			throw new Error();
+		}
+		
+		
+		
+		
+		
+		protected function _readObject(summary:ISSNodeSummary, oldObject:Object):IPendingSSResult{
+			var ret:NodeDetails = summary as NodeDetails;
+			var parentObject:*;
+			if(ret.parent){
+				parentObject = ret.parent.object;
+			}
+			reassessClassProp(ret.data, ret, ret, parentObject);
+			return ret.objectPending;
+		}
+		protected function reassessClassProp(data:Object, propDetails:PropDetails, parentNode:NodeDetails, parentObject:*):void{
+			
+			if(propDetails is ReferenceDetails)return;
+			
+			/*
+			Initially, we get the parentPropName and classpath from the node but do not
+			check it for deep references, this allows us to check early on whether a node
+			must be fully parsed for it's parent object's sake. Then (here) we analyse the
+			two variables to clean them up.
+			*/
+			var parentPropName:* = propDetails.parentSetter;
+			var classPath:String = propDetails.classPath;
+			//var isWriteOnly:Boolean = false;
+			var varType:Class;
+			var typeDesc:XML;
+			var typeName:String;
+			
+			if(propDetails.parentIsVector){
+				typeDesc = getTypeDescription(parentObject);
+				typeName = typeDesc.@name;
+				var vectorMatch:Object = VECTOR_TEST.exec(typeName);
+				if(vectorMatch!=null){
+					propDetails.classPath = vectorMatch[1];
+					if(propDetails.classPath=="*")propDetails.classPath = null;
+				}
+			}else if((parentPropName is String) && parentObject && parentPropName && parentPropName.length){
+				typeDesc = getTypeDescription(parentObject);
+				var parentProp:PropDetails = propDetails.parent;
+				
+				// Do the check for deep properties. i.e. s:prop="rootProp.parentProp.childProp"
+				var varPath: Array = parentPropName.split(".");
+				var parentTypeDesc: XML = typeDesc;
+				var dynamicMode:Boolean;
+				while (varPath.length > 0){
+					
+					var thisPropName:String = varPath.shift();
+					
+					varType = null;
+					if(parentTypeDesc){
+						typeName = getVariableType(parentTypeDesc, thisPropName);
+						if(typeName && typeName.length && typeName!="*"){
+							varType = ReflectionUtils.getClassByName(typeName);
+							//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
+						}
+					}
+					
+					
+					if(!varType){
+						var value:* = parentObject[thisPropName];
+						if(value is Function){
+							propDetails.parentSetterIsMethod = true;
+							if(parentProp.methodArgsCounts){
+								var index:* = parentProp.methodArgsCounts[thisPropName];
+								if(index==null){
+									propDetails.parentSetterIndex = 0;
+								}else{
+									propDetails.parentSetterIndex = index;
+								}
+							}else{
+								propDetails.parentSetterIndex = 0;
+								parentProp.methodArgsCounts = new Dictionary();
+							}
+							parentProp.methodArgsCounts[thisPropName] = propDetails.parentSetterIndex+1;
+							//varType = Array;
+							varType = findParamType(typeDesc,thisPropName,propDetails.parentSetterIndex);
+							break;
+						}else if(value){
+							varType = value.constructor;
+						}
+					}
+					
+					if(!varType && !typeName){
+						if(parentTypeDesc.@isDynamic.toString()!="true"){
+							var msg: String = "Couldn't map element \"" + thisPropName + "\"";
+							msg += " to object: "+ parentObject;
+							Log.error( "AbstractReader.reassessClassProp: "+msg);
+						}
+						break;
+					}else if(varPath.length){
+						parentTypeDesc = getTypeDescription(varType);
+						parentObject = parentObject[thisPropName];
+					}
+				}
+				/*if(!varType && parentProp && parentProp.parentSetterIsMethod){
+					typeDesc = getTypeDescription(parentProp.parentObject);
+					varType = findParamType(typeDesc,parentProp.parentSetter,propDetails.parentSetterIndex);
+				}*/
+				parentPropName = thisPropName;
+			}
+			var isClassRef:Boolean = (varType==Class);
+			
+			propDetails.parentSetter = parentPropName;
+			propDetails.parentObject = parentObject;
+			
+			if(varType!=null && isInterfaceRef(varType)){
+				varType = null;
+			}
+			
+			var type:Class;
+			if(propDetails.classPath){
+				type = ReflectionUtils.getClassByName(propDetails.classPath);
+			}else if(isClassRef && propDetails.simpleValue){
+				type = ReflectionUtils.getClassByName(propDetails.simpleValue);
+			}else{
+				type = varType;
+			}
+			
+			var object: *;
+			var simpleValue:* = propDetails.simpleValue;
+			if(isClassRef){
+				object = type;
+			}else{
+				switch(type){
+					case XML:
+						if(simpleValue is XML){
+							object = simpleValue;
+						}else{
+							object = new XML(simpleValue);
+						}
+						simpleValue = null;
+						break;
+					case String:
+						if(simpleValue is String){
+							object = simpleValue;
+						}else{
+							object = String(simpleValue);
+						}
+						simpleValue = null;
+						//object = String(simpleValue);
+						break;
+					case Number:
+						if(simpleValue is Number){
+							object = simpleValue;
+						}else{
+							object = StringParser.parseNumber(simpleValue,false);
+						}
+						simpleValue = null;
+						break;
+					case int:
+					case uint:
+						if(simpleValue is int){
+							object = simpleValue;
+						}else{
+							object = int(StringParser.parseNumber(simpleValue,false));
+						}
+						simpleValue = null;
+						break;
+					case Boolean:
+						if(simpleValue is Boolean){
+							object = simpleValue;
+						}else{
+							object = (simpleValue=="true");
+						}
+						simpleValue = null;
+						break;
+					case Function:
+						if(simpleValue is Function){
+							object = simpleValue;
+						}else{
+							// TODO: Need to consider package functions, which will look similiar to static functions
+							// e.g.		flash.utils.myFunction
+							//			flash.utils.FuncClass.myFunction
+							var methodSepIndex: int = simpleValue.lastIndexOf(".");
+							if (methodSepIndex < 0){
+								object = ReflectionUtils.getFunctionByName(simpleValue);
+							}else{
+								var functionName: String = simpleValue.substr(methodSepIndex + 1, simpleValue.length);
+								var className: String = simpleValue.substring(0, methodSepIndex);
+								var methodClass: Class = ReflectionUtils.getClassByName(className);
+								try{
+									object = methodClass[functionName] as Function;
+								}catch (e: ReferenceError){
+									Log.error("Function " + simpleValue + " is not defined");
+								}
+							}
+						}
+						simpleValue = null;
+						break;
+					default:
+						object = propDetails.object;
+						if(type){
+							if(!object || !(object is type)){
+								object = new type();
+							}
+						}else if(simpleValue){
+							object = StringParser.parse(simpleValue,false);
+						}
+				}
+			}
+			if(data || simpleValue){
+				createChildren(data, simpleValue, object, parentNode, propDetails);
+			}
+			
+			propDetails.committed = false;
+			propDetails.object = object;
+		}
+		
+		private function isInterfaceRef(varType:Class):Boolean{
+			var typeDesc:XML = getTypeDescription(varType);
+			return typeDesc.factory.extendsClass.length()==0;
+		}
+		
+		protected function createChildren(data:Object, simpleValue:*, object:*, parentNode:NodeDetails, propDetails:PropDetails):void{
+			// override me
+			throw new Error();
+		}
+		
+		protected function findParamType(typeDesc:XML, methodName:String, paramIndex:int):Class{
+			var methodXML:XMLList = typeDesc..method.(@name.toString()==methodName);
+			if(methodXML.length()){
+				var paramXML:XMLList = methodXML.parameter.(@index.toString()==(paramIndex+1).toString());
+				if(paramXML.length()){
+					var paramType:String = paramXML.@type;
+					if(paramType!="*")return ReflectionUtils.getClassByName(paramType);
+				}
+			}
+			return null;
+		}
+		
+		
+		/**
+		 * cleanPackageName will clean a package name into a format which can then be 
+		 * prepended to a class name and reference via ReflectionUtils.getClassByName().
+		 */
+		protected function cleanPackageName(packageName:String):String{
+			if(packageName.charAt(packageName.length-1)=="*")packageName = packageName.slice(0,packageName.length-1);
+			if(packageName.charAt(packageName.length-1)==".")packageName = packageName.slice(0,packageName.length-1);
+			if(packageName.length)packageName+=".";
+			return packageName;
+		}
+		/**
+		 * getVariableType returns a classpath as found within a class description.
+		 * They're in the form 'flash.display::BitmapData'.
+		 */
+		protected function getVariableType(desc:XML, varName:String):String{
+			var varDesc:XMLList = desc..variable.(@name==varName).@type;
+			var type:String = varDesc.toString();
+			if(type && type.length)return type;
+			else{
+				varDesc = desc..accessor.(@name==varName).@type;
+				if(varDesc.length()>0){
+					type = varDesc[0].toString();
+				}else{
+					type = null;
+				}
+				if(type && type.length)return type;
+				else return null;
+			}
+		}
+		
+		protected function getTypeDescription(object:Object):XML{
+			return ReflectionUtils.describeType(object is String?String:object);
+		}
+		
+		protected function getNodeDetails(data:Object):NodeDetails{
+			var looseRef:LooseReference = _cache[data];
+			var ret:NodeDetails;
+			if(!looseRef){
+				ret = NodeDetails.getNew();
+				ret.requestInterpret.addHandler(onRequestInterpret);
+				_cache[data] = new LooseReference(ret);
+			}else if(looseRef.referenceExists){
+				ret = looseRef.reference as NodeDetails;
+			}else{
+				ret = NodeDetails.getNew();
+				ret.requestInterpret.addHandler(onRequestInterpret);
+				looseRef.object = ret;
+			}
+			return ret;
+		}
+		
+		protected function onRequestInterpret(from:NodeDetails, interpretBundle:InterpretBundle):void{
+			if(!_interpretting[interpretBundle]){
+				var interpTried:Boolean = false;
+				var pendingChildren:Boolean = false;
+				for each(var prop:PropDetails in interpretBundle.props){
+					if(!prop.committed){
+						interpTried = true;
+						interpretProp(prop,methodClosure(checkBundle,interpretBundle));
+						if(!prop.committed){
+							pendingChildren = true;
+						}
+					}
+				}
+				if(pendingChildren){
+					_interpretting[interpretBundle] = true;
+				}else if(!interpTried){
+					interpretBundle.performSuceeded();
+				}
+			}
+		}
+		private function checkBundle(prop:PropDetails, interpretBundle:InterpretBundle):void{
+			for each(var prop:PropDetails in interpretBundle.props){
+				if(!prop.committed){
+					return;
+				}
+			}
+			delete _interpretting[interpretBundle];
+			interpretBundle.performSuceeded();
+		}
+		
+		private function interpretProp(prop:PropDetails, onComplete:Function):void{
+			var complete:Function;
+			var pendingChildren:Boolean = false;
+			var interpTried:Boolean = false;
+			
+			var childProp:PropDetails;
+			// first commit child props
+			for each(childProp in prop.childProps){
+				if(!childProp.committed){
+					interpTried = true;
+					interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+					if(!childProp.committed){
+						pendingChildren = true;
+					}
+				}
+			}
+			if(!pendingChildren){
+				if(!prop.committed){
+					// then call methods
+					var methods:Object;
+					for each(childProp in prop.childProps){
+						if(childProp.parentSetterIsMethod){
+							if(!methods)methods = {};
+							
+							var methodArgs:Array = methods[childProp.parentSetter];
+							if(!methodArgs){
+								methodArgs = [];
+								methods[childProp.parentSetter] = methodArgs;
+							}
+							
+							methodArgs.push(childProp);
+						}
+					}
+					for(var methodName:String in methods){
+						var argProps:Array = methods[methodName];
+						argProps = argProps.sort(sortMethodArgs);
+						for(var i:int=0; i<argProps.length; ++i){
+							argProps[i] = argProps[i].object;
+						}
+						prop.object[methodName].apply(null,argProps);
+					}
+					
+					// then commit to parent
+					commitValue(prop);
+				}
+				if(!interpTried)onComplete(prop);
+			}
+		}
+		protected function sortMethodArgs(a:PropDetails, b:PropDetails):int{
+			if(a.parentSetterIndex<b.parentSetterIndex){
+				return -1;
+			}else{
+				return 1;
+			}
+		}
+		private function onPropInterpreted(prop:PropDetails, parentProp:PropDetails, onComplete:Function):void{
+			interpretProp(parentProp,onComplete);
+		}
+		
+		private function commitValue(prop:PropDetails):void{
+			prop.committed = true;
+			
+			if(!prop.parentObject){
+				return;
+			}
+			
+			if(!prop.parentSetterIsMethod){
+				/*var args:Array;
+				if(prop.parentSetterArgs){
+					args = prop.parentSetterArgs.concat();
+					for(var i:int=0; i<args.length; ++i){
+						if(args[i]==PROP_REPLACE){
+							args[i] = prop.object;
+						}
+					}
+				}else if(prop.object is Array){
+					args = prop.object;
+				}else{
+					args = [prop.object];
+				}
+				prop.parentObject[prop.parentSetter].apply(null,args);
+			}else{*/
+				if(prop.parentIsVector){
+					prop.parentObject.splice(prop.parentSetter,0,prop.object);
+				}else{
+					prop.parentObject[prop.parentSetter] = prop.object;
+				}
+			}
+		}
+	}
+}
