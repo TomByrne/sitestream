@@ -9,9 +9,16 @@ package org.tbyrne.siteStream.util
 		private static const NUMBER_CHECK:RegExp = /^\d+$/s;
 		private static const HEX_NUMBER_CHECK:RegExp = /^[\dabcdef]+$/is;
 		private static const VALID_PROP_CHECK:RegExp = /\w+/;
+		private static const QUOTE_STRIPPER:RegExp = /^['"](.*)['"]$/;
 		
 		
 		public static function parse(string:String, deepParse:Boolean=true):*{
+			return _parse(string,deepParse,false);
+		}
+		public static function parseJson(string:String, deepParse:Boolean=true):*{
+			return _parse(string,deepParse,true);
+		}
+		private static function _parse(string:String, deepParse:Boolean, stripQuotes:Boolean):*{
 			var strippedStr:String = stripWhite(string);
 			if(strippedStr=="true"){
 				return true;
@@ -22,11 +29,11 @@ package org.tbyrne.siteStream.util
 			if(strippedStr=="NaN"){
 				return NaN;
 			}
-			var array:Array = _parseArray(strippedStr,deepParse);
+			var array:Array = _parseArray(strippedStr,deepParse,stripQuotes);
 			if(array){
 				return array;
 			}
-			var object:Object = _parseObject(strippedStr,deepParse,true);
+			var object:Object = _parseObject(strippedStr,deepParse,stripQuotes);
 			if(object){
 				return object;
 			}
@@ -34,7 +41,11 @@ package org.tbyrne.siteStream.util
 			if(!isNaN(number)){
 				return number;
 			}
-			return string;
+			if(stripQuotes){
+				return StringParser.stripQuotes(string);
+			}else{
+				return string;
+			}
 		}
 		public static function parseNumber(string:String, confirmChars:Boolean):Number{
 			string = stripWhite(string);
@@ -63,9 +74,9 @@ package org.tbyrne.siteStream.util
 		}
 		public static function parseArray(string:String, deepParse:Boolean=true):Array{
 			string = stripWhite(string);
-			return _parseArray(string,deepParse);
+			return _parseArray(string,deepParse,false);
 		}
-		private static function _parseArray(string:String, deepParse:Boolean):Array{
+		private static function _parseArray(string:String, deepParse:Boolean, stripQuotes:Boolean):Array{
 			var lastChar:int = string.length-1;
 			if(string.charAt(0)=="[" && string.charAt(lastChar)=="]"){
 				var array:Vector.<String> = parseCSV(string.substring(1,string.length-1));
@@ -73,7 +84,7 @@ package org.tbyrne.siteStream.util
 				var value:String;
 				if(deepParse){
 					for each(value in array){
-						ret.push(parse(value));
+						ret.push(_parse(value,true,stripQuotes));
 					}
 				}else{
 					for each(value in array){
@@ -88,38 +99,40 @@ package org.tbyrne.siteStream.util
 			string = stripWhite(string);
 			return _parseObject(string,deepParse,false);
 		}
-		private static function _parseObject(string:String, deepParse:Boolean, tryDictionaries:Boolean):Object{
+		private static function _parseObject(string:String, deepParse:Boolean, stripQuotes:Boolean):Object{
 			var lastChar:int = string.length-1;
 			if(string.charAt(0)=="{" && string.charAt(lastChar)=="}"){
 				var props:Vector.<String> = parseCSV(string.substring(1,string.length-1));
-				var ret:Object;
+				var ret:Object = {};
 				var keyValue:String;
 				var pair:Vector.<String>;
-				if(tryDictionaries){
-					for each(keyValue in props){
-						pair = parseSeperatedList(keyValue,":");
-						if(pair.length!=2){
-							return null;
-						}else if(!VALID_PROP_CHECK.test(pair[0])){
-							ret = new Dictionary();
-							break;
-						}
-					}
-					if(!ret)ret = {};
-				}else{
-					ret = {};
-				}
 				for each(keyValue in props){
 					pair = parseSeperatedList(keyValue,":");
 					if(pair.length!=2){
 						return null;
-					}else if(deepParse)ret[pair[0]] = parse(pair[1]);
-					else ret[pair[0]] = pair[1];
+					}else{
+						var prop:String = pair[0];
+						if(stripQuotes){
+							prop = StringParser.stripQuotes(prop);
+						}
+						if(deepParse)ret[prop] = _parse(pair[1],true,stripQuotes);
+						else ret[prop] = pair[1];
+					}
 				}
 				return ret;
 			}
 			return null;
 		}
+		
+		private static function stripQuotes(prop:String):String{
+			var match:Array = QUOTE_STRIPPER.exec(prop);
+			if(match){
+				return match[1];
+			}else{
+				return prop;
+			}
+		}
+		
 		public static function parseCSV(string:String):Vector.<String>{
 			return parseSeperatedList(string,",");
 		}

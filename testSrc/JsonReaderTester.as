@@ -9,7 +9,6 @@ package
 	import org.tbyrne.siteStream.json.*;
 	import org.tbyrne.siteStream.jsonTest.IJsonReaderTest;
 	import org.tbyrne.siteStream.jsonTest.summaryTests.*;
-	import org.tbyrne.siteStream.jsonTest.summaryTests.PathIdTest;
 	import org.tbyrne.siteStream.util.StringParser;
 	import org.tbyrne.utils.methodClosure;
 	
@@ -26,18 +25,16 @@ package
 			
 			Log.setLogger(new TraceLogger());
 			
-			var namespace:Namespace = new Namespace("s","http://www.tbyrne.org/sitestream");
-			
 			reader = new JsonReader(true);
-			reader.metadataNamespace = namespace;
+			reader.metadataNamespace = "http://www.tbyrne.org/sitestream";
 			
 			tests = Vector.<IJsonReaderTest>([	
 												// summary tests
 												new PathIdTest(),
-												/*new XmlUrlTest(),
+												new UrlTest(),
 												
 												// details tests
-												new LibraryLiteralTest(),
+												/*new LibraryLiteralTest(),
 												new LibraryNodeTest1(),
 												new NestedNodeTest(),
 												
@@ -88,7 +85,7 @@ package
 		}
 		private function doTest(test:IJsonReaderTest):void{
 			var result:IPendingSSResult;
-			var json:Object = StringParser.parse(test.json);
+			var json:Object = StringParser.parseJson(test.json);
 			var summary:ISSNodeSummary = reader.readRootNode(json);
 			if(!test.testSummary(summary)){
 				Log.error("Summary test failed: "+test);

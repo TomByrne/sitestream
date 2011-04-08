@@ -16,6 +16,8 @@ package org.tbyrne.siteStream.xml
 		private static const VECTOR_TEST_1:RegExp = /\[class Vector\.<(.*)>\]/;
 		
 		
+		public var metadataNamespace:String;
+		
 		public function XmlReader(cacheResults:Boolean=false){
 			super(cacheResults);
 		}
@@ -59,20 +61,23 @@ package org.tbyrne.siteStream.xml
 			var classPath:String;
 			if(xml.nodeKind()==XMLNodeKinds.ATTRIBUTE){
 				parentPropName = xml.name();
-			}else if(xml.nodeKind()==XMLNodeKinds.ELEMENT && xml.namespace()!=metadataNamespace){
-				var packageName:String;
-				packageName = cleanPackageName(xml.namespace());
-				parentPropName = getChildWithNS(xml,propAttribute,metadataNamespace);
-				
-				
-				var nodeName:String = xml.localName();
-				if(nodeName){
-					if(packageName){
-						classPath = packageName+nodeName;
-					}else if((!parentPropName || !parentPropName.length) && !ReflectionUtils.doesClassExist(nodeName)){
-						parentPropName = nodeName;
-					}else{
-						classPath = nodeName;
+			}else{
+				var ns:Namespace = xml.namespace();
+				if(xml.nodeKind()==XMLNodeKinds.ELEMENT && (!ns || ns.uri!=metadataNamespace)){
+					var packageName:String;
+					if(ns)packageName = cleanPackageName(ns.uri);
+					parentPropName = getChildWithNS(xml,propAttribute,metadataNamespace);
+					
+					
+					var nodeName:String = xml.localName();
+					if(nodeName){
+						if(packageName){
+							classPath = packageName+nodeName;
+						}else if((!parentPropName || !parentPropName.length) && !ReflectionUtils.doesClassExist(nodeName)){
+							parentPropName = nodeName;
+						}else{
+							classPath = nodeName;
+						}
 					}
 				}
 			}
@@ -187,7 +192,8 @@ package org.tbyrne.siteStream.xml
 			for(var i:int=0; i<l; ++i){
 				var memberXML:XML = xmlList[i];
 				
-				if(filterMetadata && memberXML.namespace()==metadataNamespace){
+				var ns:Namespace = memberXML.namespace();
+				if(filterMetadata && ns && ns.uri==metadataNamespace){
 					continue;
 				}
 				
@@ -200,12 +206,13 @@ package org.tbyrne.siteStream.xml
 		}
 		
 		
-		protected function getChildWithNS(xml:XML, attName:String, metadataNamespace:Namespace):XMLList{
-			var attList:XMLList = xml.attribute(new QName(metadataNamespace,attName));
+		protected function getChildWithNS(xml:XML, attName:String, metadataNamespace:String):XMLList{
+			var qName:QName = new QName(metadataNamespace,attName);
+			var attList:XMLList = xml.attribute(qName);
 			if(attList.length()){
 				return attList;
 			}else{
-				var eleList:XMLList = xml.child(new QName(metadataNamespace,attName));
+				var eleList:XMLList = xml.child(qName);
 				if(eleList.length()){
 					return eleList;
 				}else{

@@ -12,13 +12,35 @@ package org.tbyrne.siteStream.json
 	public class JsonReader extends AbstractReader
 	{
 		private static const VECTOR_TEST_1:RegExp = /\[class Vector\.<(.*)>\]/;
+		private static const JSON_NS:String = "jsns";
+		
+		
+		
+		public var metadataNamespace:String;
+		
+		private var _metadataNSPrefix:String;
+		
+		// mapped prefix > package
+		private var packages:Dictionary;
 		
 		
 		public function JsonReader(cacheResults:Boolean=false){
 			super(cacheResults);
+			
+			packages = new Dictionary();
 		}
 		
 		public function readRootNode(json:Object):ISSNodeSummary{
+			var namespaces:Object = getChildrenWithNS(json,JSON_NS);
+			for(var prop:String in namespaces){
+				var value:String = namespaces[prop];
+				if(value!=metadataNamespace){
+					packages[prop] = value;
+				}else{
+					_metadataNSPrefix = prop;
+				}
+			}
+			
 			return super._readRootNode(json);
 		}
 		public function readNodeDetails(json:Object, summary:ISSNodeSummary):IPendingSSResult{
@@ -31,7 +53,7 @@ package org.tbyrne.siteStream.json
 		
 		
 		override protected function getPathIdForData(data:Object, nodeDetails:ISSNodeDetails):String{
-			var pathId:String = getChildWithNS(data,pathIdAttribute,metadataNamespace) as String;
+			var pathId:String = getChildWithNS(data,pathIdAttribute,_metadataNSPrefix) as String;
 			if(!pathId || !pathId.length){
 				if(nodeDetails){
 					// this is the root node and we should force it to have an empty path
@@ -43,7 +65,7 @@ package org.tbyrne.siteStream.json
 			return pathId;
 		}
 		override protected function getUrlForData(data:Object):String{
-			return getChildWithNS(data,urlAttribute,metadataNamespace) as String;
+			return getChildWithNS(data,urlAttribute,_metadataNSPrefix) as String;
 		}
 		override protected function assessClassProp(data:Object, propDetails:PropDetails):void{
 			/*var xml:XML = (data as XML);
@@ -187,19 +209,36 @@ package org.tbyrne.siteStream.json
 		}*/
 		
 		
-		protected function getChildWithNS(data:Object, attName:String, metadataNamespace:Namespace):Object{
+		protected function getChildWithNS(data:Object, attName:String, metadataNSPrefix:String):Object{
 			if(typeof(data)=="object"){
 				for(var i:String in data){
 					var colon:int = i.indexOf(":");
 					if(colon!=-1){
 						var ns:String = i.slice(0,colon);
 						var prop:String = i.slice(colon+1);
-						trace(ns==metadataNamespace.prefix , prop==attName);
-						if(ns==metadataNamespace.prefix && prop==attName){
+						if(ns==metadataNSPrefix && prop==attName){
 							return data[i];
 						}
 					}
 				}
+			}
+			return null;
+		}
+		protected function getChildrenWithNS(data:Object, metadataNSPrefix:String):Object{
+			if(typeof(data)=="object"){
+				var ret:Object;
+				for(var i:String in data){
+					var colon:int = i.indexOf(":");
+					if(colon!=-1){
+						var ns:String = i.slice(0,colon);
+						var prop:String = i.slice(colon+1);
+						if(ns==metadataNSPrefix){
+							if(!ret)ret = {};
+							ret[prop] = data[i];
+						}
+					}
+				}
+				return ret;
 			}
 			return null;
 		}

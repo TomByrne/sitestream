@@ -26,10 +26,8 @@ package
 			
 			Log.setLogger(new TraceLogger());
 			
-			var namespace:Namespace = new Namespace("s","http://www.tbyrne.org/sitestream");
-			
 			xmlReader = new XmlReader(true);
-			xmlReader.metadataNamespace = namespace;
+			xmlReader.metadataNamespace = "http://www.tbyrne.org/sitestream";
 			
 			tests = Vector.<IXmlReaderTest>([	
 												// summary tests

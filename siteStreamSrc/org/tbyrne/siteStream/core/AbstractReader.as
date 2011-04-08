@@ -43,7 +43,6 @@ package org.tbyrne.siteStream.core
 		public var propAttribute:String = "id";
 		public var libsAttribute:String = "libs";
 		public var urlAttribute:String = "url";
-		public var metadataNamespace:Namespace;
 		
 		private var _cacheResults:Boolean;
 		
