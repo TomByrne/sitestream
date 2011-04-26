@@ -31,7 +31,7 @@ package
 			
 			tests = Vector.<IXmlReaderTest>([	
 												// summary tests
-												new PathIdTest(),
+												/*new PathIdTest(),
 												new UrlTest(),
 												
 												// details tests
@@ -56,6 +56,7 @@ package
 												new TypedMethodSetterTest1(),
 												new UntypedMethodSetterTest1(),
 												new UntypedMethodSetterTest2(),
+												new UntypedMethodSetterTest3(),*/
 												/*new AbsReferenceTest1(),
 												new AbsReferenceTest2(),
 												new RelReferenceTest1(),
@@ -63,10 +64,10 @@ package
 												new ReferenceMethodTest1(),
 												new ReferenceMethodTest2(),
 												new TypedReferenceMethodTest1(),
-												new TypedReferenceMethodTest2(),
+												new TypedReferenceMethodTest2(),*/
 												new ConstructorTest1(),
-												new ConstructorTest2(),
-												new FactoryTest1()*/
+												//new ConstructorTest2(),
+												//new FactoryTest1()
 												
 												]);
 			

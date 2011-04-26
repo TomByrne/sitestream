@@ -51,6 +51,10 @@ package org.tbyrne.siteStream.core
 			return _childNodes;
 		}
 		
+		public function get childReferences():Vector.<ReferenceDetails>{
+			return _childReferences;
+		}
+		
 		public function get libraries():Vector.<String>{
 			return _libraries;
 		}

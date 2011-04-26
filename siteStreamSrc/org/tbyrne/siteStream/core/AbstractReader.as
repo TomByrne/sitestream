@@ -12,8 +12,6 @@ package org.tbyrne.siteStream.core
 		private static const NODE_REFERENCE_EXP:RegExp = /^\((\S*)\)$/;
 		private static const VECTOR_TEST:RegExp = /__AS3__\.vec::Vector\.<(.*)>/;
 		
-		//private static const PROP_REPLACE:Number = Math.random(); // a unique tag
-		
 		/**
 		 * Determines whether ISSNodeSummary and ISSNodeDetails objects should be
 		 * stored internally to link up reference nodes. If the Reader instance is
@@ -43,6 +41,8 @@ package org.tbyrne.siteStream.core
 		public var propAttribute:String = "id";
 		public var libsAttribute:String = "libs";
 		public var urlAttribute:String = "url";
+		public var initAttribute:String = "init";
+		//public var poolsAttribute:String = "pools";
 		
 		private var _cacheResults:Boolean;
 		
@@ -110,7 +110,7 @@ package org.tbyrne.siteStream.core
 			var stringValue:String = getStringValue(data);
 			
 			if(stringValue && stringValue.length){
-				var refTest:Object = NODE_REFERENCE_EXP.test(stringValue);
+				var refTest:Object = NODE_REFERENCE_EXP.exec(stringValue);
 				if(refTest){
 					useReference = true;
 					stringValue = refTest[1];
@@ -173,16 +173,31 @@ package org.tbyrne.siteStream.core
 				}
 			}
 		}
+		protected function addChildProp(propDetails:PropDetails, parentProp:PropDetails, parentNode:NodeDetails, parentObject:*, overrideParentSetter:*):void{
+			propDetails.parentObject = parentObject;
+			
+			if(overrideParentSetter){
+				propDetails.parentSetter = overrideParentSetter;
+			}
+			
+			var childNode:NodeDetails = (propDetails as NodeDetails);
+			
+			if(childNode){
+				parentNode.addChildNode(childNode);
+			}else{
+				var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
+				if(refDetails)parentNode.addChildRef(refDetails);
+			}
+			if(propDetails.parentSetter!=null){
+				parentProp.addChildProp(propDetails);
+				reassessClassProp(propDetails.data,propDetails,parentNode,parentObject);
+			}
+		}
 		protected function childListAdd(propDetails:PropDetails, nodeDetails:NodeDetails, isArray:Boolean, isVector:Boolean, added:Vector.<PropDetails>):void{
 			if(!propDetails.parentSetter){
 				if(isArray || isVector){
 					propDetails.parentIsVector = isVector;
 					propDetails.parentSetter = added.length;
-					//propDetails.parentSetterIsMethod = true;
-					//propDetails.parentSetterIndex = added.length;
-					//propDetails.parentSetter = "splice";
-					//propDetails.parentSetterArgs = [added.length,0,PROP_REPLACE];
-					//if(isVector && !propDetails.classPath)propDetails.classPath = vectorType;
 				}
 			}
 			added.push(propDetails);
@@ -230,6 +245,9 @@ package org.tbyrne.siteStream.core
 					propDetails.classPath = vectorMatch[1];
 					if(propDetails.classPath=="*")propDetails.classPath = null;
 				}
+			}else if(propDetails.parent && propDetails.parent.parentSetterIsMethod){
+				typeDesc = ReflectionUtils.describeType(propDetails.parent.parent.classPath);
+				varType = findParamType(typeDesc,propDetails.parent.parentSetter,parentPropName);
 			}else if((parentPropName is String) && parentObject && parentPropName && parentPropName.length){
 				typeDesc = getTypeDescription(parentObject);
 				var parentProp:PropDetails = propDetails.parent;
@@ -255,21 +273,23 @@ package org.tbyrne.siteStream.core
 					if(!varType){
 						var value:* = parentObject[thisPropName];
 						if(value is Function){
-							propDetails.parentSetterIsMethod = true;
-							if(parentProp.methodArgsCounts){
-								var index:* = parentProp.methodArgsCounts[thisPropName];
-								if(index==null){
-									propDetails.parentSetterIndex = 0;
-								}else{
-									propDetails.parentSetterIndex = index;
-								}
-							}else{
-								propDetails.parentSetterIndex = 0;
-								parentProp.methodArgsCounts = new Dictionary();
+							if(propDetails.classPath && propDetails.classPath!="Array"){
+								var reChildProp:PropDetails = propDetails;
+								propDetails = PropDetails.getNew();
+								propDetails.parentIsVector = reChildProp.parentIsVector;
+								propDetails.parentSetter = reChildProp.parentSetter;
+								//propDetails.parentObject = reChildProp.parentObject;
+								reChildProp.parent.addChildProp(propDetails);
+								reChildProp.parent.removeChildProp(reChildProp);
+								propDetails.addChildProp(reChildProp);
+								
+								reChildProp.parentIsVector = false;
+								reChildProp.parentSetter = 0;
+								reChildProp.parentSetterIsMethod = false;
+								reChildProp.parentObject = null;
 							}
-							parentProp.methodArgsCounts[thisPropName] = propDetails.parentSetterIndex+1;
-							//varType = Array;
-							varType = findParamType(typeDesc,thisPropName,propDetails.parentSetterIndex);
+							propDetails.parentSetterIsMethod = true;
+							varType = Array;
 							break;
 						}else if(value){
 							varType = value.constructor;
@@ -288,15 +308,10 @@ package org.tbyrne.siteStream.core
 						parentObject = parentObject[thisPropName];
 					}
 				}
-				/*if(!varType && parentProp && parentProp.parentSetterIsMethod){
-					typeDesc = getTypeDescription(parentProp.parentObject);
-					varType = findParamType(typeDesc,parentProp.parentSetter,propDetails.parentSetterIndex);
-				}*/
 				parentPropName = thisPropName;
 			}
 			var isClassRef:Boolean = (varType==Class);
 			
-			propDetails.parentSetter = parentPropName;
 			propDetails.parentObject = parentObject;
 			
 			if(varType!=null && isInterfaceRef(varType)){
@@ -394,9 +409,13 @@ package org.tbyrne.siteStream.core
 						}
 				}
 			}
+			var nextParent:NodeDetails = (propDetails as NodeDetails) || parentNode;
+			for each(var childProp:PropDetails in propDetails.childProps){
+				reassessClassProp(childProp.data,childProp,nextParent,object);
+			}
 			if(data || simpleValue){
 				createChildren(data, simpleValue, object, parentNode, propDetails);
-			}
+			} 	
 			
 			propDetails.committed = false;
 			propDetails.object = object;
@@ -528,37 +547,17 @@ package org.tbyrne.siteStream.core
 					var methods:Object;
 					for each(childProp in prop.childProps){
 						if(childProp.parentSetterIsMethod){
-							if(!methods)methods = {};
-							
-							var methodArgs:Array = methods[childProp.parentSetter];
-							if(!methodArgs){
-								methodArgs = [];
-								methods[childProp.parentSetter] = methodArgs;
-							}
-							
-							methodArgs.push(childProp);
+							var args:* = childProp.object;
+							var castArgs:Array = (args as Array);
+							if(!castArgs)castArgs = [castArgs];
+							prop.object[childProp.parentSetter].apply(null,castArgs);
 						}
-					}
-					for(var methodName:String in methods){
-						var argProps:Array = methods[methodName];
-						argProps = argProps.sort(sortMethodArgs);
-						for(var i:int=0; i<argProps.length; ++i){
-							argProps[i] = argProps[i].object;
-						}
-						prop.object[methodName].apply(null,argProps);
 					}
 					
 					// then commit to parent
 					commitValue(prop);
 				}
 				if(!interpTried)onComplete(prop);
-			}
-		}
-		protected function sortMethodArgs(a:PropDetails, b:PropDetails):int{
-			if(a.parentSetterIndex<b.parentSetterIndex){
-				return -1;
-			}else{
-				return 1;
 			}
 		}
 		private function onPropInterpreted(prop:PropDetails, parentProp:PropDetails, onComplete:Function):void{
@@ -573,21 +572,6 @@ package org.tbyrne.siteStream.core
 			}
 			
 			if(!prop.parentSetterIsMethod){
-				/*var args:Array;
-				if(prop.parentSetterArgs){
-					args = prop.parentSetterArgs.concat();
-					for(var i:int=0; i<args.length; ++i){
-						if(args[i]==PROP_REPLACE){
-							args[i] = prop.object;
-						}
-					}
-				}else if(prop.object is Array){
-					args = prop.object;
-				}else{
-					args = [prop.object];
-				}
-				prop.parentObject[prop.parentSetter].apply(null,args);
-			}else{*/
 				if(prop.parentIsVector){
 					prop.parentObject.splice(prop.parentSetter,0,prop.object);
 				}else{

@@ -148,24 +148,7 @@ package org.tbyrne.siteStream.json
 			
 			if(added.length){
 				for each(var propDetails:PropDetails in added){
-					propDetails.parentObject = parentObject;
-					
-					if(overrideParentSetter){
-						propDetails.parentSetter = overrideParentSetter;
-					}
-					
-					var childNode:NodeDetails = (propDetails as NodeDetails);
-					
-					if(childNode){
-						parentNode.addChildNode(childNode);
-					}else{
-						var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
-						if(refDetails)parentNode.addChildRef(refDetails);
-					}
-					if(propDetails.parentSetter!=null){
-						parentProp.addChildProp(propDetails);
-						reassessClassProp(propDetails.data,propDetails,parentNode,parentObject);
-					}
+					addChildProp(propDetails,parentProp);
 				}
 			}
 		}*/

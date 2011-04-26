@@ -27,7 +27,7 @@ package org.tbyrne.siteStream.core
 		public var parentSetterIsMethod:Boolean;
 		//public var parentSetterArgs:Array;
 		public var parentIsVector:Boolean;
-		public var parentSetterIndex:int = -1;
+		//public var parentSetterIndex:int = -1;
 		public var parentSetter:*;
 		public var classPath:String;
 		public var parent:PropDetails;
@@ -36,7 +36,7 @@ package org.tbyrne.siteStream.core
 		public var committed:Boolean;
 		
 		// mapped methodName > int
-		public var methodArgsCounts:Dictionary;
+		//public var methodArgsCounts:Dictionary;
 		
 		public var simpleValue:*;
 		
@@ -52,6 +52,13 @@ package org.tbyrne.siteStream.core
 		public function addChildProp(childProp:PropDetails):void{
 			childProp.parent = this;
 			_childProps.push(childProp);
+		}
+		public function removeChildProp(childProp:PropDetails):void{
+			if(childProp.parent==this){
+				childProp.parent = null;
+				var index:int = _childProps.indexOf(childProp);
+				_childProps.splice(index,1);
+			}
 		}
 		
 		public function release(deepRelease:Boolean):void{
@@ -69,8 +76,8 @@ package org.tbyrne.siteStream.core
 			simpleValue = null;
 			parentSetter = null;
 			classPath = null;
-			methodArgsCounts = null;
-			parentSetterIndex = -1;
+			//methodArgsCounts = null;
+			//parentSetterIndex = -1;
 			parentSetterIsMethod = false;
 			pool.releaseObject(this);
 		}

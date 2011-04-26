@@ -138,27 +138,12 @@ package org.tbyrne.siteStream.xml
 			
 			if(added.length){
 				for each(var propDetails:PropDetails in added){
-					propDetails.parentObject = parentObject;
-					
-					if(overrideParentSetter){
-						propDetails.parentSetter = overrideParentSetter;
-					}
-					
-					var childNode:NodeDetails = (propDetails as NodeDetails);
-					
-					if(childNode){
-						parentNode.addChildNode(childNode);
-					}else{
-						var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
-						if(refDetails)parentNode.addChildRef(refDetails);
-					}
-					if(propDetails.parentSetter!=null){
-						parentProp.addChildProp(propDetails);
-						reassessClassProp(propDetails.data,propDetails,parentNode,parentObject);
-					}
+					addChildProp(propDetails,parentProp,parentNode,parentObject,overrideParentSetter);
 				}
 			}
 		}
+		
+		
 		protected function createChildList(attList:XMLList, eleList:XMLList,simpleValue:*, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
 			var doAtt:Boolean = (attList && attList.length());
 			var doEle:Boolean = (eleList && eleList.length());

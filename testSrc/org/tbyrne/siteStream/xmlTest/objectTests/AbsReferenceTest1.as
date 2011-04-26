@@ -11,7 +11,7 @@ package org.tbyrne.siteStream.xmlTest.objectTests
 			var includeClass:TestObject;
 		}
 		override public function get xml():XML{
-			return 	<test:TestObject xmlns:test="org.tbyrne.siteStream" xmlns:s="http://www.tbyrne.org/sitestream" sprite="{x:500}" parameter="(sprite.x)">
+			return 	<test:TestObject xmlns:test="org.tbyrne.siteStream" xmlns:s="http://www.tbyrne.org/sitestream" sprite="{x:500}" property="(sprite.x)">
 				</test:TestObject>;
 		}
 								
