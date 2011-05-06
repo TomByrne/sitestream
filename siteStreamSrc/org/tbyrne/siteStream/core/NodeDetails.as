@@ -104,7 +104,7 @@ package org.tbyrne.siteStream.core
 			if(!(childProp is ReferenceDetails)){
 				_nonRefBundle.addProp(childProp);
 			}
-			if(_libraries && childProp.parentObject==_libraries){
+			if(childProp.isLibrary){
 				_detailsBundle.addProp(childProp);
 			}
 		}
@@ -114,9 +114,7 @@ package org.tbyrne.siteStream.core
 			_detailsBundle.clearProps();
 			
 			for each(var propDetails:PropDetails in _childProps){
-				if(propDetails.parentObject==this && 
-					propDetails.parentSetter=="libraries"){
-					
+				if(propDetails.isLibrary){
 					_detailsBundle.addProp(propDetails);
 				}
 			}

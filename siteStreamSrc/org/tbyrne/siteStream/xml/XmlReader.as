@@ -55,6 +55,22 @@ package org.tbyrne.siteStream.xml
 			var xml:XML = (data as XML);
 			return getChildWithNS(xml,urlAttribute,metadataNamespace);
 		}
+		override protected function getInitProp(data:Object, nodeDetails:ISSNodeDetails):PropDetails{
+			var xml:XML = (data as XML);
+			if(xml){
+				var initValues:XMLList = getChildWithNS(xml,initAttribute,metadataNamespace);
+				if(initValues && initValues.length()){
+					var initXML:XML = initValues[0];
+					var ret:PropDetails = PropDetails.getNew();
+					ret.data = initXML;
+					assessClassProp(initXML,ret);
+					return ret;
+				}else{
+					return null;
+				}
+			}
+			return null;
+		}
 		override protected function assessClassProp(data:Object, propDetails:PropDetails):void{
 			var xml:XML = (data as XML);
 			var parentPropName:String;
@@ -100,10 +116,10 @@ package org.tbyrne.siteStream.xml
 			var xml:XML = (data as XML);
 			var attList:XMLList = xml.attribute(new QName(metadataNamespace,libsAttribute));
 			var eleList:XMLList = xml.child(new QName(metadataNamespace,libsAttribute));
-			createXMLChildren(nodeDetails,nodeDetails,attList,eleList,null,nodeDetails,false,"libraries");
+			createXMLChildren(nodeDetails,nodeDetails,attList,eleList,null,NodeDetails,false,true);
 			nodeDetails.checkLibraries();
 		}
-		override protected function createChildren(data:Object, simpleValue:*, object:*, parentNode:NodeDetails, propDetails:PropDetails):void{
+		override protected function createChildren(data:Object, simpleValue:*, parentClass:Class, parentNode:NodeDetails, propDetails:PropDetails):void{
 			var xml:XML = (data as XML);
 			var attList:XMLList;
 			var eleList:XMLList;
@@ -111,7 +127,7 @@ package org.tbyrne.siteStream.xml
 				attList = xml.attributes();
 				eleList = xml.elements();
 			}
-			createXMLChildren(propDetails,parentNode,attList,eleList,simpleValue,object,true,null);
+			createXMLChildren(propDetails,parentNode,attList,eleList,simpleValue,parentClass,true,false);
 		}
 		override protected function createChildNodes(data:Object, nodeDetails:NodeDetails):void{
 			var xml:XML = (data as XML);
@@ -130,26 +146,26 @@ package org.tbyrne.siteStream.xml
 		
 		
 		
-		protected function createXMLChildren(parentProp:PropDetails, parentNode:NodeDetails, attList:XMLList, eleList:XMLList, simpleValue:*, parentObject:*, filterMetadata:Boolean, overrideParentSetter:String):void{
+		protected function createXMLChildren(parentProp:PropDetails, parentNode:NodeDetails, attList:XMLList, eleList:XMLList, simpleValue:*, parentClass:Class, filterMetadata:Boolean, isLibrary:Boolean):void{
 			if(!simpleValue && !attList.length() && !eleList.length())return;
 			
 			var added:Vector.<PropDetails> = new Vector.<PropDetails>();
-			createChildList(attList,eleList,simpleValue,parentObject,added,filterMetadata);
+			createChildList(attList,eleList,simpleValue,parentClass,added,filterMetadata);
 			
 			if(added.length){
 				for each(var propDetails:PropDetails in added){
-					addChildProp(propDetails,parentProp,parentNode,parentObject,overrideParentSetter);
+					propDetails.isLibrary = isLibrary;
+					addChildProp(propDetails,parentProp,parentNode,parentClass,isLibrary?"libraries":null);
 				}
 			}
 		}
 		
 		
-		protected function createChildList(attList:XMLList, eleList:XMLList,simpleValue:*, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
+		protected function createChildList(attList:XMLList, eleList:XMLList,simpleValue:*, parentClass:Class, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
 			var doAtt:Boolean = (attList && attList.length());
 			var doEle:Boolean = (eleList && eleList.length());
 			
 			if(doEle || doAtt || simpleValue!=null){
-				var parentClass:Class = (parentObject.constructor);
 				var isArray:Boolean = (parentClass == Array);
 				
 				var isVector:Boolean;
@@ -165,14 +181,14 @@ package org.tbyrne.siteStream.xml
 					}*/
 				}
 				
-				if(doAtt)createChildListFromXML(attList,parentObject,added,filterMetadata,parentClass,isArray,isVector);
-				if(doEle)createChildListFromXML(eleList,parentObject,added,filterMetadata,parentClass,isArray,isVector);
+				if(doAtt)createChildListFromXML(attList,added,filterMetadata,parentClass,isArray,isVector);
+				if(doEle)createChildListFromXML(eleList,added,filterMetadata,parentClass,isArray,isVector);
 				if(simpleValue){
-					createChildListFromSimpleValue(simpleValue,parentObject,added,filterMetadata,parentClass,isArray,isVector);
+					createChildListFromSimpleValue(simpleValue,added,filterMetadata,parentClass,isArray,isVector);
 				}
 			}
 		}
-		protected function createChildListFromXML(xmlList:XMLList, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
+		protected function createChildListFromXML(xmlList:XMLList, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
 			var l:int = xmlList.length();
 			for(var i:int=0; i<l; ++i){
 				var memberXML:XML = xmlList[i];

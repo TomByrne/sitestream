@@ -24,6 +24,8 @@ package org.tbyrne.siteStream.core
 		
 		private var _object:*;
 		
+		public var isLibrary:Boolean;
+		public var parentSetterIsConstructor:Boolean;
 		public var parentSetterIsMethod:Boolean;
 		//public var parentSetterArgs:Array;
 		public var parentIsVector:Boolean;
@@ -31,9 +33,11 @@ package org.tbyrne.siteStream.core
 		public var parentSetter:*;
 		public var classPath:String;
 		public var parent:PropDetails;
-		public var parentObject:*;
+		//public var parentObject:*;
 		public var data:Object;
 		public var committed:Boolean;
+		public var interpretted:Boolean;
+		public var type:Class;
 		
 		// mapped methodName > int
 		//public var methodArgsCounts:Dictionary;
@@ -72,13 +76,16 @@ package org.tbyrne.siteStream.core
 			//parentSetterArgs = null;
 			parentIsVector = false;
 			parent = null;
-			parentObject = null;
+			//parentObject = null;
 			simpleValue = null;
 			parentSetter = null;
 			classPath = null;
 			//methodArgsCounts = null;
 			//parentSetterIndex = -1;
 			parentSetterIsMethod = false;
+			parentSetterIsConstructor = false;
+			interpretted = false;
+			isLibrary = false;
 			pool.releaseObject(this);
 		}
 	}

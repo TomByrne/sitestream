@@ -5,6 +5,7 @@ package org.tbyrne.siteStream.core
 	import org.tbyrne.memory.LooseReference;
 	import org.tbyrne.reflection.ReflectionUtils;
 	import org.tbyrne.siteStream.util.StringParser;
+	import org.tbyrne.utils.ConstructorApply;
 	import org.tbyrne.utils.methodClosure;
 	
 	public class AbstractReader
@@ -93,6 +94,10 @@ package org.tbyrne.siteStream.core
 			// override me
 			throw new Error();
 		}
+		protected function getInitProp(data:Object, nodeDetails:ISSNodeDetails):PropDetails{
+			// override me
+			throw new Error();
+		}
 		
 		
 		
@@ -144,7 +149,7 @@ package org.tbyrne.siteStream.core
 			// override me
 			throw new Error();
 		}
-		protected function createChildListFromSimpleValue(simpleValue:*, parentObject:*, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
+		protected function createChildListFromSimpleValue(simpleValue:*, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
 			var subPropDetails:PropDetails;
 			if(isArray || isVector){
 				var array:Array = (simpleValue as Array) || StringParser.parseArray(simpleValue,false);
@@ -173,8 +178,7 @@ package org.tbyrne.siteStream.core
 				}
 			}
 		}
-		protected function addChildProp(propDetails:PropDetails, parentProp:PropDetails, parentNode:NodeDetails, parentObject:*, overrideParentSetter:*):void{
-			propDetails.parentObject = parentObject;
+		protected function addChildProp(propDetails:PropDetails, parentProp:PropDetails, parentNode:NodeDetails, parentClass:Class, overrideParentSetter:*):void{
 			
 			if(overrideParentSetter){
 				propDetails.parentSetter = overrideParentSetter;
@@ -190,7 +194,7 @@ package org.tbyrne.siteStream.core
 			}
 			if(propDetails.parentSetter!=null){
 				parentProp.addChildProp(propDetails);
-				reassessClassProp(propDetails.data,propDetails,parentNode,parentObject);
+				reassessClassProp(propDetails.data,propDetails,parentNode,parentClass);
 			}
 		}
 		protected function childListAdd(propDetails:PropDetails, nodeDetails:NodeDetails, isArray:Boolean, isVector:Boolean, added:Vector.<PropDetails>):void{
@@ -214,15 +218,19 @@ package org.tbyrne.siteStream.core
 		protected function _readObject(summary:ISSNodeSummary, oldObject:Object):IPendingSSResult{
 			var ret:NodeDetails = summary as NodeDetails;
 			var parentObject:*;
+			var parentClass:Class;
 			if(ret.parent){
 				parentObject = ret.parent.object;
+				if(parentObject!=null)parentClass = parentObject["constructor"];
 			}
-			reassessClassProp(ret.data, ret, ret, parentObject);
+			reassessClassProp(ret.data, ret, ret, parentClass);
 			return ret.objectPending;
 		}
-		protected function reassessClassProp(data:Object, propDetails:PropDetails, parentNode:NodeDetails, parentObject:*):void{
+		protected function reassessClassProp(data:Object, propDetails:PropDetails, parentNode:NodeDetails, parentClass:Class):void{
 			
 			if(propDetails is ReferenceDetails)return;
+			
+			var nextParent:NodeDetails = (propDetails as NodeDetails) || parentNode;
 			
 			/*
 			Initially, we get the parentPropName and classpath from the node but do not
@@ -238,7 +246,7 @@ package org.tbyrne.siteStream.core
 			var typeName:String;
 			
 			if(propDetails.parentIsVector){
-				typeDesc = getTypeDescription(parentObject);
+				typeDesc = getTypeDescription(parentClass);
 				typeName = typeDesc.@name;
 				var vectorMatch:Object = VECTOR_TEST.exec(typeName);
 				if(vectorMatch!=null){
@@ -248,191 +256,152 @@ package org.tbyrne.siteStream.core
 			}else if(propDetails.parent && propDetails.parent.parentSetterIsMethod){
 				typeDesc = ReflectionUtils.describeType(propDetails.parent.parent.classPath);
 				varType = findParamType(typeDesc,propDetails.parent.parentSetter,parentPropName);
-			}else if((parentPropName is String) && parentObject && parentPropName && parentPropName.length){
-				typeDesc = getTypeDescription(parentObject);
-				var parentProp:PropDetails = propDetails.parent;
-				
-				// Do the check for deep properties. i.e. s:prop="rootProp.parentProp.childProp"
-				var varPath: Array = parentPropName.split(".");
-				var parentTypeDesc: XML = typeDesc;
-				var dynamicMode:Boolean;
-				while (varPath.length > 0){
+			}else if(propDetails.parent && propDetails.parent.parentSetterIsConstructor){
+				typeDesc = ReflectionUtils.describeType(propDetails.parent.parent.classPath);
+				varType = findConstType(typeDesc,parentPropName);
+			}else if(parentClass){
+				if(propDetails.parentSetterIsConstructor){
+					propDetails = confirmArrayProp(propDetails);
+					varType = Array;
+				}else if((parentPropName is String) && parentPropName && parentPropName.length){
+					typeDesc = getTypeDescription(parentClass);
+					var parentProp:PropDetails = propDetails.parent;
 					
-					var thisPropName:String = varPath.shift();
-					
-					varType = null;
-					if(parentTypeDesc){
-						typeName = getVariableType(parentTypeDesc, thisPropName);
-						if(typeName && typeName.length && typeName!="*"){
-							varType = ReflectionUtils.getClassByName(typeName);
-							//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
-						}
-					}
-					
-					
-					if(!varType){
-						var value:* = parentObject[thisPropName];
-						if(value is Function){
-							if(propDetails.classPath && propDetails.classPath!="Array"){
-								var reChildProp:PropDetails = propDetails;
-								propDetails = PropDetails.getNew();
-								propDetails.parentIsVector = reChildProp.parentIsVector;
-								propDetails.parentSetter = reChildProp.parentSetter;
-								//propDetails.parentObject = reChildProp.parentObject;
-								reChildProp.parent.addChildProp(propDetails);
-								reChildProp.parent.removeChildProp(reChildProp);
-								propDetails.addChildProp(reChildProp);
-								
-								reChildProp.parentIsVector = false;
-								reChildProp.parentSetter = 0;
-								reChildProp.parentSetterIsMethod = false;
-								reChildProp.parentObject = null;
+					// Do the check for deep properties. i.e. s:prop="rootProp.parentProp.childProp"
+					var varPath: Array = parentPropName.split(".");
+					var parentTypeDesc: XML = typeDesc;
+					var dynamicMode:Boolean;
+					while (varPath.length > 0){
+						
+						var thisPropName:String = varPath.shift();
+						
+						varType = null;
+						if(parentTypeDesc){
+							typeName = getVariableType(parentTypeDesc, thisPropName);
+							if(typeName && typeName.length && typeName!="*"){
+								varType = ReflectionUtils.getClassByName(typeName);
+								//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
 							}
-							propDetails.parentSetterIsMethod = true;
-							varType = Array;
+						}
+						
+						
+						if(!varType){
+							if(typeDesc..method.(@name.toString()==thisPropName).length()){
+								propDetails = confirmArrayProp(propDetails);
+								propDetails.parentSetterIsMethod = true;
+								varType = Array;
+								break;
+							}
+							/*var value:* = parentObject[thisPropName];
+							if(value is Function){
+								confirmArrayProp(propDetails);
+								propDetails.parentSetterIsMethod = true;
+								varType = Array;
+								break;
+							}else if(value){
+								varType = value.constructor;
+							}*/
+						}
+						
+						if(!varType && !typeName){
+							if(parentTypeDesc.@isDynamic.toString()!="true"){
+								var msg: String = "Couldn't map element \"" + thisPropName + "\"";
+								msg += " to class: "+ parentClass;
+								Log.error( "AbstractReader.reassessClassProp: "+msg);
+							}
 							break;
-						}else if(value){
-							varType = value.constructor;
+						}else if(varPath.length){
+							parentTypeDesc = getTypeDescription(varType);
+							//parentObject = parentObject[thisPropName];
 						}
 					}
-					
-					if(!varType && !typeName){
-						if(parentTypeDesc.@isDynamic.toString()!="true"){
-							var msg: String = "Couldn't map element \"" + thisPropName + "\"";
-							msg += " to object: "+ parentObject;
-							Log.error( "AbstractReader.reassessClassProp: "+msg);
-						}
-						break;
-					}else if(varPath.length){
-						parentTypeDesc = getTypeDescription(varType);
-						parentObject = parentObject[thisPropName];
-					}
+					parentPropName = thisPropName;
 				}
-				parentPropName = thisPropName;
 			}
 			var isClassRef:Boolean = (varType==Class);
-			
-			propDetails.parentObject = parentObject;
 			
 			if(varType!=null && isInterfaceRef(varType)){
 				varType = null;
 			}
 			
 			var type:Class;
-			if(propDetails.classPath){
+			if(isClassRef){
+				if(propDetails.simpleValue)type = ReflectionUtils.getClassByName(propDetails.simpleValue);
+				else if(propDetails.classPath)type = ReflectionUtils.getClassByName(propDetails.classPath);
+			}else if(propDetails.classPath){
 				type = ReflectionUtils.getClassByName(propDetails.classPath);
-			}else if(isClassRef && propDetails.simpleValue){
-				type = ReflectionUtils.getClassByName(propDetails.simpleValue);
 			}else{
 				type = varType;
 			}
 			
-			var object: *;
-			var simpleValue:* = propDetails.simpleValue;
+			
+			var initProp:PropDetails = getInitProp(data,nextParent);
+			if(initProp){
+				initProp.parentSetterIsConstructor = true;
+				propDetails.addChildProp(initProp);
+				reassessClassProp(initProp.data,initProp,nextParent,type);
+			}
+			
 			if(isClassRef){
-				object = type;
+				propDetails.type = Class;
+				propDetails.object = type;
 			}else{
-				switch(type){
-					case XML:
-						if(simpleValue is XML){
-							object = simpleValue;
-						}else{
-							object = new XML(simpleValue);
-						}
-						simpleValue = null;
-						break;
-					case String:
-						if(simpleValue is String){
-							object = simpleValue;
-						}else{
-							object = String(simpleValue);
-						}
-						simpleValue = null;
-						//object = String(simpleValue);
-						break;
-					case Number:
-						if(simpleValue is Number){
-							object = simpleValue;
-						}else{
-							object = StringParser.parseNumber(simpleValue,false);
-						}
-						simpleValue = null;
-						break;
-					case int:
-					case uint:
-						if(simpleValue is int){
-							object = simpleValue;
-						}else{
-							object = int(StringParser.parseNumber(simpleValue,false));
-						}
-						simpleValue = null;
-						break;
-					case Boolean:
-						if(simpleValue is Boolean){
-							object = simpleValue;
-						}else{
-							object = (simpleValue=="true");
-						}
-						simpleValue = null;
-						break;
-					case Function:
-						if(simpleValue is Function){
-							object = simpleValue;
-						}else{
-							// TODO: Need to consider package functions, which will look similiar to static functions
-							// e.g.		flash.utils.myFunction
-							//			flash.utils.FuncClass.myFunction
-							var methodSepIndex: int = simpleValue.lastIndexOf(".");
-							if (methodSepIndex < 0){
-								object = ReflectionUtils.getFunctionByName(simpleValue);
-							}else{
-								var functionName: String = simpleValue.substr(methodSepIndex + 1, simpleValue.length);
-								var className: String = simpleValue.substring(0, methodSepIndex);
-								var methodClass: Class = ReflectionUtils.getClassByName(className);
-								try{
-									object = methodClass[functionName] as Function;
-								}catch (e: ReferenceError){
-									Log.error("Function " + simpleValue + " is not defined");
-								}
-							}
-						}
-						simpleValue = null;
-						break;
-					default:
-						object = propDetails.object;
-						if(type){
-							if(!object || !(object is type)){
-								object = new type();
-							}
-						}else if(simpleValue){
-							object = StringParser.parse(simpleValue,false);
-						}
-				}
+				propDetails.type = type;
 			}
-			var nextParent:NodeDetails = (propDetails as NodeDetails) || parentNode;
+			
 			for each(var childProp:PropDetails in propDetails.childProps){
-				reassessClassProp(childProp.data,childProp,nextParent,object);
+				if(childProp!=initProp)reassessClassProp(childProp.data,childProp,nextParent,type);
 			}
-			if(data || simpleValue){
-				createChildren(data, simpleValue, object, parentNode, propDetails);
+			if(data || propDetails.simpleValue){
+				createChildren(data, propDetails.simpleValue, type, parentNode, propDetails);
 			} 	
 			
 			propDetails.committed = false;
-			propDetails.object = object;
 		}
+		
+		private function confirmArrayProp(propDetails:PropDetails):PropDetails{
+			if(propDetails.classPath && propDetails.classPath!="Array"){
+				var reChildProp:PropDetails = propDetails;
+				propDetails = PropDetails.getNew();
+				propDetails.parentIsVector = reChildProp.parentIsVector;
+				propDetails.parentSetter = reChildProp.parentSetter;
+				//propDetails.parentObject = reChildProp.parentObject;
+				reChildProp.parent.addChildProp(propDetails);
+				reChildProp.parent.removeChildProp(reChildProp);
+				propDetails.addChildProp(reChildProp);
+				propDetails.classPath = "Array";
+				
+				reChildProp.parentIsVector = false;
+				reChildProp.parentSetter = 0;
+				reChildProp.parentSetterIsMethod = false;
+			}
+			return propDetails;
+		}
+		
 		
 		private function isInterfaceRef(varType:Class):Boolean{
 			var typeDesc:XML = getTypeDescription(varType);
 			return typeDesc.factory.extendsClass.length()==0;
 		}
 		
-		protected function createChildren(data:Object, simpleValue:*, object:*, parentNode:NodeDetails, propDetails:PropDetails):void{
+		protected function createChildren(data:Object, simpleValue:*, parentClass:Class, parentNode:NodeDetails, propDetails:PropDetails):void{
 			// override me
 			throw new Error();
 		}
 		
 		protected function findParamType(typeDesc:XML, methodName:String, paramIndex:int):Class{
 			var methodXML:XMLList = typeDesc..method.(@name.toString()==methodName);
+			if(methodXML.length()){
+				var paramXML:XMLList = methodXML.parameter.(@index.toString()==(paramIndex+1).toString());
+				if(paramXML.length()){
+					var paramType:String = paramXML.@type;
+					if(paramType!="*")return ReflectionUtils.getClassByName(paramType);
+				}
+			}
+			return null;
+		}
+		protected function findConstType(typeDesc:XML, paramIndex:int):Class{
+			var methodXML:XMLList = typeDesc..constructor;
 			if(methodXML.length()){
 				var paramXML:XMLList = methodXML.parameter.(@index.toString()==(paramIndex+1).toString());
 				if(paramXML.length()){
@@ -527,39 +496,163 @@ package org.tbyrne.siteStream.core
 		
 		private function interpretProp(prop:PropDetails, onComplete:Function):void{
 			var complete:Function;
-			var pendingChildren:Boolean = false;
-			var interpTried:Boolean = false;
+			//var pendingChildren:Boolean = false;
+			var avoidContinue:Boolean = false;
 			
 			var childProp:PropDetails;
-			// first commit child props
-			for each(childProp in prop.childProps){
-				if(!childProp.committed){
-					interpTried = true;
-					interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
-					if(!childProp.committed){
-						pendingChildren = true;
-					}
-				}
-			}
-			if(!pendingChildren){
-				if(!prop.committed){
-					// then call methods
-					var methods:Object;
-					for each(childProp in prop.childProps){
-						if(childProp.parentSetterIsMethod){
-							var args:* = childProp.object;
-							var castArgs:Array = (args as Array);
-							if(!castArgs)castArgs = [castArgs];
-							prop.object[childProp.parentSetter].apply(null,castArgs);
+			var initParams:Array;
+			
+			prop.interpretted = true;
+			
+			
+			if(prop.object==null){
+				// find constructor args
+				for each(childProp in prop.childProps){
+					if(childProp.parentSetterIsConstructor){
+						if(!childProp.interpretted){
+							// interpret constructor args
+							avoidContinue = true;
+							interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+						}
+						if(childProp.committed){
+							if(!avoidContinue){
+								if(!initParams){
+									initParams = childProp.object is Array?childProp.object:[childProp.object];
+								}else{
+									initParams = initParams.concat(childProp.object);
+								}
+							}
+						}else{
+							avoidContinue = true;
 						}
 					}
-					
-					// then commit to parent
-					commitValue(prop);
 				}
-				if(!interpTried)onComplete(prop);
+				if(avoidContinue)return;
+				
+				instantiateObject(prop,initParams);
 			}
+			
+			// first commit child props
+			for each(childProp in prop.childProps){
+				if(!childProp.interpretted){
+					avoidContinue = true;
+					interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+				}
+				if(!childProp.committed){
+					avoidContinue = true;
+				}
+			}
+			if(avoidContinue)return;
+			
+			if(!prop.committed){
+				
+				// then call methods
+				var methods:Object;
+				for each(childProp in prop.childProps){
+					if(childProp.parentSetterIsMethod){
+						var args:* = childProp.object;
+						var castArgs:Array = (args as Array);
+						if(!castArgs)castArgs = [castArgs];
+						prop.object[childProp.parentSetter].apply(null,castArgs);
+					}
+				}
+				
+				// then commit to parent
+				commitValue(prop);
+			}
+			onComplete(prop);
 		}
+		
+		private function instantiateObject(propDetails:PropDetails, initParams:Array):void{
+			var type:Class = propDetails.type;
+			var isClassRef:Boolean = (type==Class);
+			var object: *;
+			var simpleValue:* = propDetails.simpleValue;
+			if(!isClassRef){
+				switch(type){
+					case XML:
+						if(simpleValue is XML){
+							object = simpleValue;
+						}else{
+							object = new XML(simpleValue);
+						}
+						simpleValue = null;
+						break;
+					case String:
+						if(simpleValue is String){
+							object = simpleValue;
+						}else{
+							object = String(simpleValue);
+						}
+						simpleValue = null;
+						//object = String(simpleValue);
+						break;
+					case Number:
+						if(simpleValue is Number){
+							object = simpleValue;
+						}else{
+							object = StringParser.parseNumber(simpleValue,false);
+						}
+						simpleValue = null;
+						break;
+					case int:
+					case uint:
+						if(simpleValue is int){
+							object = simpleValue;
+						}else{
+							object = int(StringParser.parseNumber(simpleValue,false));
+						}
+						simpleValue = null;
+						break;
+					case Boolean:
+						if(simpleValue is Boolean){
+							object = simpleValue;
+						}else{
+							object = (simpleValue=="true");
+						}
+						simpleValue = null;
+						break;
+					case Function:
+						if(simpleValue is Function){
+							object = simpleValue;
+						}else{
+							// TODO: Need to consider package functions, which will look similiar to static functions
+							// e.g.		flash.utils.myFunction
+							//			flash.utils.FuncClass.myFunction
+							var methodSepIndex: int = simpleValue.lastIndexOf(".");
+							if (methodSepIndex < 0){
+								object = ReflectionUtils.getFunctionByName(simpleValue);
+							}else{
+								var functionName: String = simpleValue.substr(methodSepIndex + 1, simpleValue.length);
+								var className: String = simpleValue.substring(0, methodSepIndex);
+								var methodClass: Class = ReflectionUtils.getClassByName(className);
+								try{
+									object = methodClass[functionName] as Function;
+								}catch (e: ReferenceError){
+									Log.error("Function " + simpleValue + " is not defined");
+								}
+							}
+						}
+						simpleValue = null;
+						break;
+					default:
+						object = propDetails.object;
+						if(type){
+							if(!object || !(object is type)){
+								if(initParams){
+									object = ConstructorApply(type,initParams);
+								}else{
+									object = new type();
+								}
+							}
+						}else if(simpleValue){
+							object = StringParser.parse(simpleValue,false);
+						}
+				}
+			}
+			propDetails.object = object;
+		}
+		
 		private function onPropInterpreted(prop:PropDetails, parentProp:PropDetails, onComplete:Function):void{
 			interpretProp(parentProp,onComplete);
 		}
@@ -567,15 +660,25 @@ package org.tbyrne.siteStream.core
 		private function commitValue(prop:PropDetails):void{
 			prop.committed = true;
 			
-			if(!prop.parentObject){
+			var parentObject:*;
+			if(prop.parent){
+				parentObject = prop.parent.object;
+			}
+			
+			if(prop.isLibrary){
+				(prop.parent as NodeDetails).libraries = prop.object;
+				return;
+			}
+			
+			if(!parentObject){
 				return;
 			}
 			
 			if(!prop.parentSetterIsMethod){
 				if(prop.parentIsVector){
-					prop.parentObject.splice(prop.parentSetter,0,prop.object);
+					parentObject.splice(prop.parentSetter,0,prop.object);
 				}else{
-					prop.parentObject[prop.parentSetter] = prop.object;
+					parentObject[prop.parentSetter] = prop.object;
 				}
 			}
 		}

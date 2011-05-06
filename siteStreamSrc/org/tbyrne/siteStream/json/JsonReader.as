@@ -113,7 +113,7 @@ package org.tbyrne.siteStream.json
 			createXMLChildren(nodeDetails,nodeDetails,attList,eleList,null,nodeDetails,false,"libraries");*/
 			nodeDetails.checkLibraries();
 		}
-		override protected function createChildren(data:Object, simpleValue:*, object:*, parentNode:NodeDetails, propDetails:PropDetails):void{
+		override protected function createChildren(data:Object, simpleValue:*, parentClass:Class, parentNode:NodeDetails, propDetails:PropDetails):void{
 			/*var xml:XML = (data as XML);
 			var attList:XMLList;
 			var eleList:XMLList;
