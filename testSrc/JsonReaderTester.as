@@ -7,8 +7,8 @@ package
 	import org.tbyrne.siteStream.core.ISSNodeDetails;
 	import org.tbyrne.siteStream.core.ISSNodeSummary;
 	import org.tbyrne.siteStream.json.*;
-	import org.tbyrne.siteStream.jsonTest.IJsonReaderTest;
-	import org.tbyrne.siteStream.jsonTest.summaryTests.*;
+	import org.tbyrne.siteStream.jsonTests.IJsonReaderTest;
+	import org.tbyrne.siteStream.jsonTests.summaryTests.*;
 	import org.tbyrne.siteStream.util.StringParser;
 	import org.tbyrne.utils.methodClosure;
 	

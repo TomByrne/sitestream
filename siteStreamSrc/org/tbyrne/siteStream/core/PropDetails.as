@@ -38,6 +38,7 @@ package org.tbyrne.siteStream.core
 		public var committed:Boolean;
 		public var interpretted:Boolean;
 		public var type:Class;
+		public var node:NodeDetails;
 		
 		// mapped methodName > int
 		//public var methodArgsCounts:Dictionary;

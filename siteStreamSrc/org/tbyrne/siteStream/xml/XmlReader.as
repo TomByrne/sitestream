@@ -55,6 +55,33 @@ package org.tbyrne.siteStream.xml
 			var xml:XML = (data as XML);
 			return getChildWithNS(xml,urlAttribute,metadataNamespace);
 		}
+		override protected function getPoolProps(data:Object, nodeDetails:ISSNodeDetails):Vector.<PropDetails>{
+			var xml:XML = (data as XML);
+			var pools:XMLList = getChildWithNS(xml,poolsAttribute,metadataNamespace);
+			if(pools!=null){
+				var ret:Vector.<PropDetails> = new Vector.<PropDetails>();
+				createPools(pools,ret);
+				return ret;
+			}else{
+				return null;
+			}
+			
+		}
+		
+		private function createPools(data:XMLList, pools:Vector.<PropDetails>):void{
+			for each(var poolData:XML in data){
+				var prop:PropDetails = PropDetails.getNew();
+				prop.data = poolData;
+				assessClassProp(poolData,prop);
+				if(prop.classPath){
+					prop.simpleValue = getStringValue(poolData);
+					pools.push(prop);
+				}else{
+					createPools(poolData.children(),pools);
+				}
+			}
+		}
+		
 		override protected function getInitProp(data:Object, nodeDetails:ISSNodeDetails):PropDetails{
 			var xml:XML = (data as XML);
 			if(xml){
@@ -64,6 +91,7 @@ package org.tbyrne.siteStream.xml
 					var ret:PropDetails = PropDetails.getNew();
 					ret.data = initXML;
 					assessClassProp(initXML,ret);
+					ret.simpleValue = getStringValue(initXML);
 					return ret;
 				}else{
 					return null;
@@ -129,6 +157,9 @@ package org.tbyrne.siteStream.xml
 			}
 			createXMLChildren(propDetails,parentNode,attList,eleList,simpleValue,parentClass,true,false);
 		}
+		/*
+		@todo: optimise this so that it doesn't need to iterate over all descendant nodes
+		*/
 		override protected function createChildNodes(data:Object, nodeDetails:NodeDetails):void{
 			var xml:XML = (data as XML);
 			var list:XMLList = xml.descendants(); // we're building an assumption in here that only elements can be nodes (for speed)

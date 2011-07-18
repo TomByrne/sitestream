@@ -1,5 +1,7 @@
 package org.tbyrne.siteStream
 {
+	import flash.display.Sprite;
+
 	public class TestObjectFactory
 	{
 		public var sprite:Sprite;

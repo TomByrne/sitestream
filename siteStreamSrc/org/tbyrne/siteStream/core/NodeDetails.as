@@ -77,6 +77,8 @@ package org.tbyrne.siteStream.core
 		private var _xmlUrl:String;
 		private var _pathId:String;
 		
+		private var _objectPools:Vector.<PropDetails>;
+		
 		//private var _nonRefChildren:Vector.<PropDetails>;
 		
 		//private var _libraryProps:Vector.<PropDetails>;
@@ -153,6 +155,17 @@ package org.tbyrne.siteStream.core
 			childNode.parent = this;
 			_childReferences.push(childNode);
 		}
+		
+		
+		public function get objectPools():Vector.<PropDetails>{
+			return _objectPools;
+		}
+		public function set objectPools(value:Vector.<PropDetails>):void{
+			if(_objectPools!=value){
+				_objectPools = value;
+			}
+		}
+		
 		
 		
 		override public function release(deepRelease:Boolean):void{

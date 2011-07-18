@@ -7,10 +7,10 @@ package
 	import org.tbyrne.siteStream.core.ISSNodeDetails;
 	import org.tbyrne.siteStream.core.ISSNodeSummary;
 	import org.tbyrne.siteStream.xml.*;
-	import org.tbyrne.siteStream.xmlTest.IXmlReaderTest;
-	import org.tbyrne.siteStream.xmlTest.detailsTests.*;
-	import org.tbyrne.siteStream.xmlTest.objectTests.*;
-	import org.tbyrne.siteStream.xmlTest.summaryTests.*;
+	import org.tbyrne.siteStream.xmlTests.IXmlReaderTest;
+	import org.tbyrne.siteStream.xmlTests.detailsTests.*;
+	import org.tbyrne.siteStream.xmlTests.objectTests.*;
+	import org.tbyrne.siteStream.xmlTests.summaryTests.*;
 	import org.tbyrne.utils.methodClosure;
 	
 	public class XmlReaderTester extends Sprite
@@ -58,8 +58,8 @@ package
 												new UntypedMethodSetterTest2(),
 												new UntypedMethodSetterTest3(),
 												new ConstructorTest1(),
-												//new ConstructorTest2(),
-												//new FactoryTest1()
+												new ConstructorTest2(),
+												new FactoryTest1()
 												/*new AbsReferenceTest1(),
 												new AbsReferenceTest2(),
 												new RelReferenceTest1(),

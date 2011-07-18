@@ -1,6 +1,6 @@
 package org.tbyrne.utils
 {
-	public function ConstructorApply(type:Class, args:Array):*{
+	public function constructorApply(type:Class, args:Array):*{
 		if(!args)return new type();
 		switch(args.length){
 			case 0: return new type();

@@ -2,16 +2,19 @@ package org.tbyrne.siteStream.core
 {
 	import flash.utils.Dictionary;
 	
+	import org.flexunit.runners.ParentRunner;
 	import org.tbyrne.memory.LooseReference;
 	import org.tbyrne.reflection.ReflectionUtils;
+	import org.tbyrne.siteStream.ISSObjectPool;
 	import org.tbyrne.siteStream.util.StringParser;
-	import org.tbyrne.utils.ConstructorApply;
+	import org.tbyrne.utils.constructorApply;
 	import org.tbyrne.utils.methodClosure;
 	
 	public class AbstractReader
 	{
 		private static const NODE_REFERENCE_EXP:RegExp = /^\((\S*)\)$/;
 		private static const VECTOR_TEST:RegExp = /__AS3__\.vec::Vector\.<(.*)>/;
+		private static const STRING_STRIPPER:RegExp = /\s*(.*)\s*/;
 		
 		/**
 		 * Determines whether ISSNodeSummary and ISSNodeDetails objects should be
@@ -43,7 +46,7 @@ package org.tbyrne.siteStream.core
 		public var libsAttribute:String = "libs";
 		public var urlAttribute:String = "url";
 		public var initAttribute:String = "init";
-		//public var poolsAttribute:String = "pools";
+		public var poolsAttribute:String = "pools";
 		
 		private var _cacheResults:Boolean;
 		
@@ -91,6 +94,10 @@ package org.tbyrne.siteStream.core
 			throw new Error();
 		}
 		protected function assessClassProp(data:Object, propDetails:PropDetails):void{
+			// override me
+			throw new Error();
+		}
+		protected function getPoolProps(data:Object, nodeDetails:ISSNodeDetails):Vector.<PropDetails>{
 			// override me
 			throw new Error();
 		}
@@ -230,7 +237,18 @@ package org.tbyrne.siteStream.core
 			
 			if(propDetails is ReferenceDetails)return;
 			
-			var nextParent:NodeDetails = (propDetails as NodeDetails) || parentNode;
+			var childProp:PropDetails;
+			
+			var nextParent:NodeDetails = propDetails as NodeDetails;
+			if(!nextParent){
+				nextParent = parentNode;
+			}else{
+				nextParent.objectPools = getPoolProps(data,nextParent);
+				for each(childProp in nextParent.objectPools){
+					if(childProp!=initProp)reassessClassProp(childProp.data,childProp,nextParent,type);
+				}
+			}
+			propDetails.node = nextParent;
 			
 			/*
 			Initially, we get the parentPropName and classpath from the node but do not
@@ -280,7 +298,6 @@ package org.tbyrne.siteStream.core
 							typeName = getVariableType(parentTypeDesc, thisPropName);
 							if(typeName && typeName.length && typeName!="*"){
 								varType = ReflectionUtils.getClassByName(typeName);
-								//if(!varPath.length)isWriteOnly = (parentTypeDesc..accessor.(@name==thisPropName).@access=="writeonly");
 							}
 						}
 						
@@ -292,15 +309,6 @@ package org.tbyrne.siteStream.core
 								varType = Array;
 								break;
 							}
-							/*var value:* = parentObject[thisPropName];
-							if(value is Function){
-								confirmArrayProp(propDetails);
-								propDetails.parentSetterIsMethod = true;
-								varType = Array;
-								break;
-							}else if(value){
-								varType = value.constructor;
-							}*/
 						}
 						
 						if(!varType && !typeName){
@@ -326,8 +334,10 @@ package org.tbyrne.siteStream.core
 			
 			var type:Class;
 			if(isClassRef){
-				if(propDetails.simpleValue)type = ReflectionUtils.getClassByName(propDetails.simpleValue);
-				else if(propDetails.classPath)type = ReflectionUtils.getClassByName(propDetails.classPath);
+				if(propDetails.simpleValue)classPath = propDetails.simpleValue;
+				else if(propDetails.classPath)classPath = propDetails.classPath;
+				var trimRes:Object = STRING_STRIPPER.exec(classPath);
+				if(trimRes)type = ReflectionUtils.getClassByName(trimRes[1]);
 			}else if(propDetails.classPath){
 				type = ReflectionUtils.getClassByName(propDetails.classPath);
 			}else{
@@ -349,7 +359,7 @@ package org.tbyrne.siteStream.core
 				propDetails.type = type;
 			}
 			
-			for each(var childProp:PropDetails in propDetails.childProps){
+			for each(childProp in propDetails.childProps){
 				if(childProp!=initProp)reassessClassProp(childProp.data,childProp,nextParent,type);
 			}
 			if(data || propDetails.simpleValue){
@@ -361,25 +371,29 @@ package org.tbyrne.siteStream.core
 		
 		private function confirmArrayProp(propDetails:PropDetails):PropDetails{
 			if(propDetails.classPath && propDetails.classPath!="Array"){
-				var reChildProp:PropDetails = propDetails;
-				propDetails = PropDetails.getNew();
-				propDetails.parentIsVector = reChildProp.parentIsVector;
-				propDetails.parentSetter = reChildProp.parentSetter;
-				//propDetails.parentObject = reChildProp.parentObject;
-				reChildProp.parent.addChildProp(propDetails);
-				reChildProp.parent.removeChildProp(reChildProp);
-				propDetails.addChildProp(reChildProp);
-				propDetails.classPath = "Array";
+				var arrayProp:PropDetails = PropDetails.getNew();
+				arrayProp.parentIsVector = propDetails.parentIsVector;
+				arrayProp.parentSetter = propDetails.parentSetter;
+				//arrayProp.parentObject = reChildProp.parentObject;
+				propDetails.parent.addChildProp(arrayProp);
+				propDetails.parent.removeChildProp(propDetails);
+				arrayProp.addChildProp(propDetails);
+				arrayProp.classPath = "Array";
+				arrayProp.node = propDetails.node;
 				
-				reChildProp.parentIsVector = false;
-				reChildProp.parentSetter = 0;
-				reChildProp.parentSetterIsMethod = false;
+				propDetails.parentIsVector = false;
+				propDetails.parentSetter = 0;
+				propDetails.parentSetterIsMethod = false;
+				return arrayProp;
 			}
 			return propDetails;
 		}
 		
 		
 		private function isInterfaceRef(varType:Class):Boolean{
+			if(varType==Object){
+				return false;
+			}
 			var typeDesc:XML = getTypeDescription(varType);
 			return typeDesc.factory.extendsClass.length()==0;
 		}
@@ -503,6 +517,22 @@ package org.tbyrne.siteStream.core
 			var initParams:Array;
 			
 			prop.interpretted = true;
+			
+			var node:NodeDetails = prop.node;
+			if(node==prop){
+				// do pools first
+				for each(childProp in node.objectPools){
+					if(!childProp.interpretted){
+						// interpret constructor args
+						avoidContinue = true;
+						interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+					}
+					if(!childProp.committed){
+						avoidContinue = true;
+					}
+				}
+				if(avoidContinue)return;
+			}
 			
 			
 			if(prop.object==null){
@@ -639,11 +669,22 @@ package org.tbyrne.siteStream.core
 						object = propDetails.object;
 						if(type){
 							if(!object || !(object is type)){
-								if(initParams){
-									object = ConstructorApply(type,initParams);
-								}else{
-									object = new type();
+								var foundPool:Boolean;
+								if(propDetails.node.objectPools){
+									for each(var poolDetails:PropDetails in propDetails.node.objectPools){
+										var pool:ISSObjectPool = (poolDetails.object);
+										/*
+										Sometimes the pool won't exist yet. This is the case when the pools themselves
+										are being built, if you want to use a pool to build another pool you must list it first.
+										*/
+										if(pool && pool.doesMatch(propDetails)){
+											foundPool = true;
+											object = pool.create();
+											break;
+										}
+									}
 								}
+								if(!foundPool)object = constructorApply(type,initParams);
 							}
 						}else if(simpleValue){
 							object = StringParser.parse(simpleValue,false);
