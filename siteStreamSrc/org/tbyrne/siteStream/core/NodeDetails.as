@@ -151,9 +151,10 @@ package org.tbyrne.siteStream.core
 			childNode.parent = this;
 			_childNodes.push(childNode);
 		}
-		public function addChildRef(childNode:ReferenceDetails):void{
-			childNode.parent = this;
-			_childReferences.push(childNode);
+		public function addChildRef(childRef:ReferenceDetails, relativeTo:PropDetails):void{
+			childRef.parent = relativeTo;
+			childRef.node = this;
+			_childReferences.push(childRef);
 		}
 		
 		

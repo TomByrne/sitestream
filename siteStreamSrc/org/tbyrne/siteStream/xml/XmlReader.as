@@ -9,7 +9,6 @@ package org.tbyrne.siteStream.xml
 	import org.tbyrne.siteStream.core.ISSNodeSummary;
 	import org.tbyrne.siteStream.core.NodeDetails;
 	import org.tbyrne.siteStream.core.PropDetails;
-	import org.tbyrne.siteStream.core.ReferenceDetails;
 
 	public class XmlReader extends AbstractReader
 	{
@@ -181,7 +180,7 @@ package org.tbyrne.siteStream.xml
 			if(!simpleValue && !attList.length() && !eleList.length())return;
 			
 			var added:Vector.<PropDetails> = new Vector.<PropDetails>();
-			createChildList(attList,eleList,simpleValue,parentClass,added,filterMetadata);
+			createChildList(parentNode, attList,eleList,simpleValue,parentClass,added,filterMetadata);
 			
 			if(added.length){
 				for each(var propDetails:PropDetails in added){
@@ -192,7 +191,7 @@ package org.tbyrne.siteStream.xml
 		}
 		
 		
-		protected function createChildList(attList:XMLList, eleList:XMLList,simpleValue:*, parentClass:Class, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
+		protected function createChildList(parentNode:NodeDetails, attList:XMLList, eleList:XMLList,simpleValue:*, parentClass:Class, added:Vector.<PropDetails>, filterMetadata:Boolean):void{
 			var doAtt:Boolean = (attList && attList.length());
 			var doEle:Boolean = (eleList && eleList.length());
 			
@@ -212,14 +211,14 @@ package org.tbyrne.siteStream.xml
 					}*/
 				}
 				
-				if(doAtt)createChildListFromXML(attList,added,filterMetadata,parentClass,isArray,isVector);
-				if(doEle)createChildListFromXML(eleList,added,filterMetadata,parentClass,isArray,isVector);
+				if(doAtt)createChildListFromXML(parentNode, attList,added,filterMetadata,parentClass,isArray,isVector);
+				if(doEle)createChildListFromXML(parentNode, eleList,added,filterMetadata,parentClass,isArray,isVector);
 				if(simpleValue){
 					createChildListFromSimpleValue(simpleValue,added,filterMetadata,parentClass,isArray,isVector);
 				}
 			}
 		}
-		protected function createChildListFromXML(xmlList:XMLList, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
+		protected function createChildListFromXML(parentNode:NodeDetails, xmlList:XMLList, added:Vector.<PropDetails>, filterMetadata:Boolean, parentClass:Class, isArray:Boolean, isVector:Boolean):void{
 			var l:int = xmlList.length();
 			for(var i:int=0; i<l; ++i){
 				var memberXML:XML = xmlList[i];
@@ -228,11 +227,15 @@ package org.tbyrne.siteStream.xml
 				if(filterMetadata && ns && ns.uri==metadataNamespace){
 					continue;
 				}
+				var pathId:String = getPathIdForData(memberXML, nodeDetails);
+				var nodeDetails:NodeDetails;
+				if(pathId){
+					nodeDetails = findChildNode(parentNode, pathId);
+				}
 				
-				var nodeDetails:NodeDetails = assessNodeSummary(memberXML,null);
 				var propDetails:PropDetails = assessRefAndDetails(memberXML,nodeDetails);
 				if(propDetails){
-					childListAdd(propDetails, nodeDetails, isArray, isVector, added);
+					childListAdd(propDetails, isArray, isVector, added);
 				}
 			}
 		}

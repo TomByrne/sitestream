@@ -59,10 +59,10 @@ package
 												new UntypedMethodSetterTest3(),
 												new ConstructorTest1(),
 												new ConstructorTest2(),
-												new FactoryTest1()
-												/*new AbsReferenceTest1(),
+												new FactoryTest1(),
+												new AbsReferenceTest1(),
 												new AbsReferenceTest2(),
-												new RelReferenceTest1(),
+												/*new RelReferenceTest1(),
 												new RelReferenceTest2(),
 												new ReferenceMethodTest1(),
 												new ReferenceMethodTest2(),

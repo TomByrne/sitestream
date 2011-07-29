@@ -165,13 +165,13 @@ package org.tbyrne.siteStream.core
 						subPropDetails = PropDetails.getNew();
 						subPropDetails.simpleValue = value;
 						//subPropDetails.classPath = vectorType;
-						childListAdd(subPropDetails, null, isArray, isVector, added)
+						childListAdd(subPropDetails, isArray, isVector, added)
 					}
 				}else{
 					subPropDetails = PropDetails.getNew();
 					subPropDetails.simpleValue = simpleValue;
 					//subPropDetails.classPath = vectorType;
-					childListAdd(subPropDetails, null, isArray, isVector, added)
+					childListAdd(subPropDetails, isArray, isVector, added)
 				}
 			}else{
 				var object:Object = (typeof(simpleValue)=="object"?simpleValue:StringParser.parseObject(simpleValue,false));
@@ -180,7 +180,7 @@ package org.tbyrne.siteStream.core
 						subPropDetails = PropDetails.getNew();
 						subPropDetails.parentSetter = prop;
 						subPropDetails.simpleValue = object[prop];
-						childListAdd(subPropDetails, null, isArray, isVector, added)
+						childListAdd(subPropDetails, isArray, isVector, added)
 					}
 				}
 			}
@@ -195,16 +195,17 @@ package org.tbyrne.siteStream.core
 			
 			if(childNode){
 				parentNode.addChildNode(childNode);
+				parentProp.addChildProp(propDetails);
 			}else{
 				var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
-				if(refDetails)parentNode.addChildRef(refDetails);
+				if(refDetails)parentNode.addChildRef(refDetails,parentProp);
+				else parentProp.addChildProp(propDetails);
 			}
 			if(propDetails.parentSetter!=null){
-				parentProp.addChildProp(propDetails);
 				reassessClassProp(propDetails.data,propDetails,parentNode,parentClass);
 			}
 		}
-		protected function childListAdd(propDetails:PropDetails, nodeDetails:NodeDetails, isArray:Boolean, isVector:Boolean, added:Vector.<PropDetails>):void{
+		protected function childListAdd(propDetails:PropDetails, isArray:Boolean, isVector:Boolean, added:Vector.<PropDetails>):void{
 			if(!propDetails.parentSetter){
 				if(isArray || isVector){
 					propDetails.parentIsVector = isVector;
@@ -509,88 +510,174 @@ package org.tbyrne.siteStream.core
 		}
 		
 		private function interpretProp(prop:PropDetails, onComplete:Function):void{
-			var complete:Function;
-			//var pendingChildren:Boolean = false;
-			var avoidContinue:Boolean = false;
-			
-			var childProp:PropDetails;
-			var initParams:Array;
+			var reference:ReferenceDetails = (prop as ReferenceDetails);
+			var node:NodeDetails;
 			
 			prop.interpretted = true;
 			
-			var node:NodeDetails = prop.node;
-			if(node==prop){
-				// do pools first
-				for each(childProp in node.objectPools){
-					if(!childProp.interpretted){
-						// interpret constructor args
-						avoidContinue = true;
-						interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+			if(reference){
+				
+				
+				var subject:*;
+				var parts:Array = prop.simpleValue.split("/");
+				
+				node = prop.node;
+				
+				if(parts.length>1){
+					// node based
+					
+					if(parts[0]=='' && parts[1]==''){
+						// absolute reference
+						while(node.parent){
+							node = node.parent.node;
+						}
+					}/*else{
+						// relative reference
+					}*/
+					
+					var propPath:String;
+					
+					var lastPart:String = parts[parts.length-1];
+					var index:int = lastPart.indexOf(".");
+					if(index!=-1){
+						parts[parts.length-1] = lastPart.substr(0,index);
+						propPath = lastPart.substr(index+1);
 					}
-					if(!childProp.committed){
-						avoidContinue = true;
+					
+					while(parts[0]==''){
+						parts.shift();
+					}
+					
+					for(var i:int=0; i<parts.length; i++){
+						var partName:String = parts[i];
+						node = findChildNode(node,partName);
+					}
+					subject = node.object;
+				}else{
+					// object based
+					subject = prop.parent.object;
+					propPath = prop.simpleValue;
+				}
+				
+				
+				if(propPath){
+					parts = propPath.split(".");
+					for(i=0; i<parts.length; i++){
+						subject = subject[parts[i]];
 					}
 				}
-				if(avoidContinue)return;
-			}
+				reference.object = subject;
+				commitValue(prop);
+			}else{
 			
-			
-			if(prop.object==null){
-				// find constructor args
-				for each(childProp in prop.childProps){
-					if(childProp.parentSetterIsConstructor){
+				var complete:Function;
+				var avoidContinue:Boolean = false;
+				
+				var childProp:PropDetails;
+				var initParams:Array;
+				
+				node = prop.node;
+				var isNode:Boolean = (node==prop);
+				if(isNode){
+					// do pools first
+					for each(childProp in node.objectPools){
 						if(!childProp.interpretted){
 							// interpret constructor args
 							avoidContinue = true;
 							interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
 						}
-						if(childProp.committed){
-							if(!avoidContinue){
-								if(!initParams){
-									initParams = childProp.object is Array?childProp.object:[childProp.object];
-								}else{
-									initParams = initParams.concat(childProp.object);
-								}
+						if(!childProp.committed){
+							avoidContinue = true;
+						}
+					}
+					if(avoidContinue)return;
+				}
+				
+				
+				if(prop.object==null){
+					// find constructor args
+					for each(childProp in prop.childProps){
+						if(childProp.parentSetterIsConstructor){
+							if(!childProp.interpretted){
+								// interpret constructor args
+								avoidContinue = true;
+								interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
 							}
-						}else{
+							if(childProp.committed){
+								if(!avoidContinue){
+									if(!initParams){
+										initParams = childProp.object is Array?childProp.object:[childProp.object];
+									}else{
+										initParams = initParams.concat(childProp.object);
+									}
+								}
+							}else{
+								avoidContinue = true;
+							}
+						}
+					}
+					if(avoidContinue)return;
+					
+					instantiateObject(prop,initParams);
+				}
+				
+				// first commit child props
+				for each(childProp in prop.childProps){
+					if(!(childProp is ReferenceDetails)){
+						if(!childProp.interpretted){
+							avoidContinue = true;
+							interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+						}
+						if(!childProp.committed){
 							avoidContinue = true;
 						}
 					}
 				}
 				if(avoidContinue)return;
 				
-				instantiateObject(prop,initParams);
-			}
-			
-			// first commit child props
-			for each(childProp in prop.childProps){
-				if(!childProp.interpretted){
-					avoidContinue = true;
-					interpretProp(childProp, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
-				}
-				if(!childProp.committed){
-					avoidContinue = true;
-				}
-			}
-			if(avoidContinue)return;
-			
-			if(!prop.committed){
-				
-				// then call methods
-				var methods:Object;
-				for each(childProp in prop.childProps){
-					if(childProp.parentSetterIsMethod){
-						var args:* = childProp.object;
-						var castArgs:Array = (args as Array);
-						if(!castArgs)castArgs = [castArgs];
-						prop.object[childProp.parentSetter].apply(null,castArgs);
+				if(!prop.committed){
+					
+					// then call methods
+					var methods:Object;
+					for each(childProp in prop.childProps){
+						if(childProp.parentSetterIsMethod){
+							var args:* = childProp.object;
+							var castArgs:Array = (args as Array);
+							if(!castArgs)castArgs = [castArgs];
+							prop.object[childProp.parentSetter].apply(null,castArgs);
+						}
 					}
+					
+					// then commit to parent
+					commitValue(prop);
 				}
 				
-				// then commit to parent
-				commitValue(prop);
+				if(isNode){
+					// resolve reference nodes
+					for each(reference in node.childReferences){
+						if(!reference.interpretted){
+							// interpret constructor args
+							avoidContinue = true;
+							interpretProp(reference, complete || (complete = methodClosure(onPropInterpreted,prop,onComplete)));
+						}
+						if(!reference.committed){
+							avoidContinue = true;
+						}
+					}
+					if(avoidContinue)return;
+				}
 			}
 			onComplete(prop);
+		}
+		
+		
+		protected function findChildNode(parentNode:NodeDetails, pathId:String):NodeDetails{
+			for each(var childNode:NodeDetails in parentNode.childNodes){
+				if(childNode.pathId==pathId){
+					return childNode;
+				}
+			}
+			return null;
 		}
 		
 		private function instantiateObject(propDetails:PropDetails, initParams:Array):void{

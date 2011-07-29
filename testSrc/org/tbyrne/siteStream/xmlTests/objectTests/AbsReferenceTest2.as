@@ -9,12 +9,11 @@ package org.tbyrne.siteStream.xmlTests.objectTests
 		public function AbsReferenceTest2(){
 		}
 		override public function get xml():XML{
-			return <Object xmlns:s="http://www.tbyrne.org/sitestream" s:path="root">
+			return <Object xmlns:s="http://www.tbyrne.org/sitestream">
 			
 						<Object s:path="node" s:id="child1">
-							<reference>(//root/node.child)</reference>
-							<Object s:id="child2">
-							</Object>
+							<reference>(//node.child2)</reference>
+							<Object s:id="child2"/>
 						</Object>
 					</Object>
 		}
