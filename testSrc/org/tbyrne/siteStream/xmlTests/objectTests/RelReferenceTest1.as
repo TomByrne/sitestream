@@ -9,7 +9,7 @@ package org.tbyrne.siteStream.xmlTests.objectTests
 		public function RelReferenceTest1(){
 		}
 		override public function get xml():XML{
-			return <Object xmlns:s="http://www.tbyrne.org/sitestream" s:path="root">
+			return <Object xmlns:s="http://www.tbyrne.org/sitestream">
 			
 						<Object s:path="node" s:id="child1">
 							<reference>(child2.child3)</reference>

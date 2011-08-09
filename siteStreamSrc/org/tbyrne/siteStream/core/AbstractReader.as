@@ -2,8 +2,8 @@ package org.tbyrne.siteStream.core
 {
 	import flash.utils.Dictionary;
 	
-	import org.flexunit.runners.ParentRunner;
 	import org.tbyrne.memory.LooseReference;
+	import org.tbyrne.reflection.Deliterator;
 	import org.tbyrne.reflection.ReflectionUtils;
 	import org.tbyrne.siteStream.ISSObjectPool;
 	import org.tbyrne.siteStream.util.StringParser;
@@ -15,6 +15,7 @@ package org.tbyrne.siteStream.core
 		private static const NODE_REFERENCE_EXP:RegExp = /^\((\S*)\)$/;
 		private static const VECTOR_TEST:RegExp = /__AS3__\.vec::Vector\.<(.*)>/;
 		private static const STRING_STRIPPER:RegExp = /\s*(.*)\s*/;
+		private static const METHOD_FINDER:RegExp = /(.+)\((.*)\)/;
 		
 		/**
 		 * Determines whether ISSNodeSummary and ISSNodeDetails objects should be
@@ -194,7 +195,7 @@ package org.tbyrne.siteStream.core
 			var childNode:NodeDetails = (propDetails as NodeDetails);
 			
 			if(childNode){
-				parentNode.addChildNode(childNode);
+				//parentNode.addChildNode(childNode); //should already be added
 				parentProp.addChildProp(propDetails);
 			}else{
 				var refDetails:ReferenceDetails = (propDetails as ReferenceDetails);
@@ -364,7 +365,7 @@ package org.tbyrne.siteStream.core
 				if(childProp!=initProp)reassessClassProp(childProp.data,childProp,nextParent,type);
 			}
 			if(data || propDetails.simpleValue){
-				createChildren(data, propDetails.simpleValue, type, parentNode, propDetails);
+				createChildren(data, propDetails.simpleValue, type, nextParent, propDetails);
 			} 	
 			
 			propDetails.committed = false;
@@ -518,6 +519,7 @@ package org.tbyrne.siteStream.core
 			if(reference){
 				
 				
+				var propPath:String;
 				var subject:*;
 				var parts:Array = prop.simpleValue.split("/");
 				
@@ -535,39 +537,26 @@ package org.tbyrne.siteStream.core
 						// relative reference
 					}*/
 					
-					var propPath:String;
 					
 					var lastPart:String = parts[parts.length-1];
-					var index:int = lastPart.indexOf(".");
-					if(index!=-1){
-						parts[parts.length-1] = lastPart.substr(0,index);
-						propPath = lastPart.substr(index+1);
+					if(lastPart!=".."){
+						var index:int = lastPart.indexOf(".");
+						if(index!=-1){
+							parts[parts.length-1] = lastPart.substr(0,index);
+							propPath = lastPart.substr(index+1);
+						}
 					}
 					
 					while(parts[0]==''){
 						parts.shift();
 					}
-					
-					for(var i:int=0; i<parts.length; i++){
-						var partName:String = parts[i];
-						node = findChildNode(node,partName);
-					}
-					subject = node.object;
+					resolveReference(node, reference, parts, 0, propPath, onComplete);
 				}else{
 					// object based
-					subject = prop.parent.object;
-					propPath = prop.simpleValue;
+					finaliseReference(prop.simpleValue, prop.parent.object, reference, onComplete);
 				}
 				
 				
-				if(propPath){
-					parts = propPath.split(".");
-					for(i=0; i<parts.length; i++){
-						subject = subject[parts[i]];
-					}
-				}
-				reference.object = subject;
-				commitValue(prop);
 			}else{
 			
 				var complete:Function;
@@ -666,12 +655,74 @@ package org.tbyrne.siteStream.core
 					}
 					if(avoidContinue)return;
 				}
+				if(!prop.completed){
+					prop.completed = true;
+					onComplete(prop);
+				}
 			}
-			onComplete(prop);
+		}
+		
+		private function resolveReference(node:NodeDetails, reference:ReferenceDetails, parts:Array, partIndex:int, propPath:String, onComplete:Function):void{
+			while(partIndex<parts.length){
+				var partName:String = parts[partIndex];
+				node = findChildNode(node,partName);
+				partIndex++;
+				if(!node.committed){
+					node.afterCommitted.addTempHandler(resolveReference,[reference,parts,partIndex,propPath,onComplete]);
+					return;
+				}
+			}
+			finaliseReference(propPath, node.object, reference, onComplete);
+		}
+		
+		
+		private function finaliseReference(propPath:String, target:*, reference:ReferenceDetails, onComplete:Function):void{
+			if(propPath){
+				var parts:Array = propPath.split(".");
+				for(var i:int=0; i<parts.length; i++){
+					var part:String = parts[i];
+					var result:Object = METHOD_FINDER.exec(part);
+					if(result){
+						var funcName:String = result[1];
+						var paramsStr:String = result[2];
+						
+						var func:Function = target[funcName];
+						var params:Array;
+						if(paramsStr.length){
+							var typeDesc:XML = ReflectionUtils.describeType(target);
+							params = paramsStr.split(",");
+							for(var j:int=0; j<params.length; ++j){
+								var param:* = params[j];
+								param = Deliterator.deliterate(param);
+								if(typeof(param)=="object"){
+									var paramType:Class = findParamType(typeDesc,funcName,j);
+									if(paramType!=Object){
+										var typed:* = new paramType();
+										for(var p:String in param){
+											typed[p] = param[p];
+										}
+										param = typed;
+									}
+								}
+								params[j] = param;
+							}
+						}
+						target = func.apply(null,params);
+					}else{
+						target = target[parts[i]];
+					}
+				}
+			}
+			reference.object = target;
+			commitValue(reference);
+			onComplete(reference);
 		}
 		
 		
 		protected function findChildNode(parentNode:NodeDetails, pathId:String):NodeDetails{
+			if(pathId==".."){
+				return parentNode.parent.node;
+			}
 			for each(var childNode:NodeDetails in parentNode.childNodes){
 				if(childNode.pathId==pathId){
 					return childNode;

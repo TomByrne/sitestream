@@ -12,9 +12,9 @@ package org.tbyrne.siteStream.xmlTests.objectTests
 		override public function get xml():XML{
 			return <Object xmlns:s="http://www.tbyrne.org/sitestream" s:path="root">
 			
-						<Object s:id="child1">
+						<Object s:id="child1" s:path="child1">
 							<Object s:id="child2">
-								<reference>(../../node.refChild2)</reference>
+								<reference>(../node.refChild2)</reference>
 							</Object>
 						</Object>
 			

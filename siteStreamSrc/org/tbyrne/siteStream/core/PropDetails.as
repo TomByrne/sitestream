@@ -2,15 +2,28 @@ package org.tbyrne.siteStream.core
 {
 	import flash.utils.Dictionary;
 	
+	import org.tbyrne.acting.actTypes.IAct;
+	import org.tbyrne.acting.acts.Act;
 	import org.tbyrne.hoborg.ObjectPool;
 	
 	public class PropDetails{
 		private static const pool:ObjectPool = new ObjectPool(PropDetails);
+
 		public static function getNew():PropDetails{
 			var ret:PropDetails = pool.takeObject();
 			ret.pool = pool;
 			return ret;
 		}
+		
+		
+		/**
+		 * handler(from:PropDetails)
+		 */
+		public function get afterCommitted():IAct{
+			return (_afterCommitted || (_afterCommitted = new Act()));
+		}
+		
+		protected var _afterCommitted:Act;
 		
 		public function get object():*{
 			return _object;
@@ -22,7 +35,16 @@ package org.tbyrne.siteStream.core
 			return _childProps;
 		}
 		
+		public function get committed():Boolean{
+			return _committed;
+		}
+		public function set committed(value:Boolean):void{
+			_committed = value;
+			if(_afterCommitted)_afterCommitted.perform(this);
+		}
+		
 		private var _object:*;
+		private var _committed:Boolean;
 		
 		public var isLibrary:Boolean;
 		public var parentSetterIsConstructor:Boolean;
@@ -35,8 +57,8 @@ package org.tbyrne.siteStream.core
 		public var parent:PropDetails;
 		//public var parentObject:*;
 		public var data:Object;
-		public var committed:Boolean;
 		public var interpretted:Boolean;
+		public var completed:Boolean;
 		public var type:Class;
 		public var node:NodeDetails;
 		

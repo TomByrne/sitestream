@@ -62,9 +62,9 @@ package org.tbyrne.siteStream.core
 			_libraries = value;
 		}
 		override public function set object(value:*):void{
-			super.object = value;
 			_objectBundle.result = value;
 			_nonRefBundle.result = value;
+			super.object = value;
 		}
 		
 		private var _detailsBundle:InterpretBundle;
@@ -105,6 +105,8 @@ package org.tbyrne.siteStream.core
 			super.addChildProp(childProp);
 			if(!(childProp is ReferenceDetails)){
 				_nonRefBundle.addProp(childProp);
+			}else{
+				throw "What";
 			}
 			if(childProp.isLibrary){
 				_detailsBundle.addProp(childProp);
