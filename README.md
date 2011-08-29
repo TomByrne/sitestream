@@ -7,17 +7,17 @@ functionality adapted to the characteristics of the flash platform and the
 project domains that flash is often used for.
 
 - Object Serialisation/Deserialisation
-- Dependancy Injection/Inversion of Control Container
+- Dependency Injection/Inversion of Control Container
 - External application configuration
 - Lazy loading of swf libraries
 
 
-Dependancies
+Dependencies
 ------------
 - tbyrne library
 
 
-Build and Test Dependancies
+Build and Test Dependencies
 ---------------------------
 - Flex SDK 4.5.0
 - FlexUnit 4.1.0 RC2
