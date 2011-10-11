@@ -4,7 +4,7 @@ package org.tbyrne.siteStream
 
 	public interface ISSObjectPool
 	{
-		function doesMatch(propDetails:PropDetails):Boolean;
+		function doesMatch(type:Class):Boolean;
 		function create():*;
 		function destroy(object:*):void;
 	}

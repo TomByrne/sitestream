@@ -263,11 +263,10 @@ package org.tbyrne.siteStream.core
 			//var isWriteOnly:Boolean = false;
 			var varType:Class;
 			var typeDesc:XML;
-			var typeName:String;
 			
 			if(propDetails.parentIsVector){
 				typeDesc = getTypeDescription(parentClass);
-				typeName = typeDesc.@name;
+				var typeName:String = typeDesc.@name;
 				var vectorMatch:Object = VECTOR_TEST.exec(typeName);
 				if(vectorMatch!=null){
 					propDetails.classPath = vectorMatch[1];
@@ -290,17 +289,13 @@ package org.tbyrne.siteStream.core
 					// Do the check for deep properties. i.e. s:prop="rootProp.parentProp.childProp"
 					var varPath: Array = parentPropName.split(".");
 					var parentTypeDesc: XML = typeDesc;
-					var dynamicMode:Boolean;
 					while (varPath.length > 0){
 						
 						var thisPropName:String = varPath.shift();
 						
 						varType = null;
 						if(parentTypeDesc){
-							typeName = getVariableType(parentTypeDesc, thisPropName);
-							if(typeName && typeName.length && typeName!="*"){
-								varType = ReflectionUtils.getClassByName(typeName);
-							}
+							varType = getVariableType(parentTypeDesc, thisPropName);
 						}
 						
 						
@@ -313,7 +308,7 @@ package org.tbyrne.siteStream.core
 							}
 						}
 						
-						if(!varType && !typeName){
+						if(!varType){
 							if(parentTypeDesc.@isDynamic.toString()!="true"){
 								var msg: String = "Couldn't map element \"" + thisPropName + "\"";
 								msg += " to class: "+ parentClass;
@@ -440,23 +435,22 @@ package org.tbyrne.siteStream.core
 			return packageName;
 		}
 		/**
-		 * getVariableType returns a classpath as found within a class description.
-		 * They're in the form 'flash.display::BitmapData'.
+		 * getVariableType returns a class as found within a class description.
 		 */
-		protected function getVariableType(desc:XML, varName:String):String{
+		protected function getVariableType(desc:XML, varName:String):Class{
 			var varDesc:XMLList = desc..variable.(@name==varName).@type;
 			var type:String = varDesc.toString();
-			if(type && type.length)return type;
-			else{
+			if(!type || !type.length){
 				varDesc = desc..accessor.(@name==varName).@type;
 				if(varDesc.length()>0){
 					type = varDesc[0].toString();
 				}else{
 					type = null;
 				}
-				if(type && type.length)return type;
-				else return null;
 			}
+			if(type && type.length && type!="*"){
+				return ReflectionUtils.getClassByName(type);;
+			}else return null;
 		}
 		
 		protected function getTypeDescription(object:Object):XML{
@@ -607,7 +601,7 @@ package org.tbyrne.siteStream.core
 					}
 					if(avoidContinue)return;
 					
-					instantiateObject(prop,initParams);
+					prop.object = instantiateObject(prop.type, prop.simpleValue, prop.object, prop.node.objectPools, initParams, false);
 				}
 				
 				// first commit child props
@@ -678,7 +672,7 @@ package org.tbyrne.siteStream.core
 		
 		private function finaliseReference(propPath:String, target:*, reference:ReferenceDetails, onComplete:Function):void{
 			if(propPath){
-				var parts:Array = propPath.split(".");
+				var parts:Vector.<String> = StringParser.parseSeperatedList(propPath,".");
 				for(var i:int=0; i<parts.length; i++){
 					var part:String = parts[i];
 					var result:Object = METHOD_FINDER.exec(part);
@@ -691,20 +685,10 @@ package org.tbyrne.siteStream.core
 						if(paramsStr.length){
 							var typeDesc:XML = ReflectionUtils.describeType(target);
 							params = paramsStr.split(",");
+							var objectPools:Vector.<PropDetails> = reference.node.objectPools;
 							for(var j:int=0; j<params.length; ++j){
-								var param:* = params[j];
-								param = Deliterator.deliterate(param);
-								if(typeof(param)=="object"){
-									var paramType:Class = findParamType(typeDesc,funcName,j);
-									if(paramType!=Object){
-										var typed:* = new paramType();
-										for(var p:String in param){
-											typed[p] = param[p];
-										}
-										param = typed;
-									}
-								}
-								params[j] = param;
+								var paramType:Class = findParamType(typeDesc,funcName,j);
+								params[j] = instantiateObject(paramType, params[j], null, objectPools, null, true);
 							}
 						}
 						target = func.apply(null,params);
@@ -731,11 +715,11 @@ package org.tbyrne.siteStream.core
 			return null;
 		}
 		
-		private function instantiateObject(propDetails:PropDetails, initParams:Array):void{
-			var type:Class = propDetails.type;
+		private function instantiateObject(type:Class, simpleValue:*, existingObject:*, objectPools:Vector.<PropDetails>, initParams:Array, goDeep:Boolean):*{
+			//var type:Class = propDetails.type;
 			var isClassRef:Boolean = (type==Class);
 			var object: *;
-			var simpleValue:* = propDetails.simpleValue;
+			//var simpleValue:* = propDetails.simpleValue;
 			if(!isClassRef){
 				switch(type){
 					case XML:
@@ -804,18 +788,18 @@ package org.tbyrne.siteStream.core
 						simpleValue = null;
 						break;
 					default:
-						object = propDetails.object;
+						object = existingObject;
 						if(type){
 							if(!object || !(object is type)){
 								var foundPool:Boolean;
-								if(propDetails.node.objectPools){
-									for each(var poolDetails:PropDetails in propDetails.node.objectPools){
+								if(objectPools){
+									for each(var poolDetails:PropDetails in objectPools){
 										var pool:ISSObjectPool = (poolDetails.object);
 										/*
 										Sometimes the pool won't exist yet. This is the case when the pools themselves
 										are being built, if you want to use a pool to build another pool you must list it first.
 										*/
-										if(pool && pool.doesMatch(propDetails)){
+										if(pool && pool.doesMatch(type)){
 											foundPool = true;
 											object = pool.create();
 											break;
@@ -824,12 +808,29 @@ package org.tbyrne.siteStream.core
 								}
 								if(!foundPool)object = constructorApply(type,initParams);
 							}
+							if(simpleValue && goDeep){
+								if(typeof(simpleValue)=="string"){
+									simpleValue = StringParser.parse(simpleValue,false);
+								}
+								var parentTypeDesc:XML = getTypeDescription(type);
+								for(var prop:String in simpleValue){
+									var childSimpleValue:* = simpleValue[prop];
+									var childType:Class = getVariableType(parentTypeDesc, prop);
+									object[prop] = instantiateObject(childType, childSimpleValue, null, objectPools, null, true);
+								}
+							}
 						}else if(simpleValue){
 							object = StringParser.parse(simpleValue,false);
 						}
 				}
+			}else{
+				if(type!=null && type!=Class){
+					object = type;
+				}else if(simpleValue && typeof(simpleValue)=="string"){
+					object = ReflectionUtils.getClassByName(simpleValue);
+				}
 			}
-			propDetails.object = object;
+			return object;
 		}
 		
 		private function onPropInterpreted(prop:PropDetails, parentProp:PropDetails, onComplete:Function):void{

@@ -136,7 +136,7 @@ package org.tbyrne.siteStream.util
 		public static function parseCSV(string:String):Vector.<String>{
 			return parseSeperatedList(string,",");
 		}
-		private static function parseSeperatedList(string:String, seperator:String):Vector.<String>{
+		public static function parseSeperatedList(string:String, seperator:String):Vector.<String>{
 			var lastChar:int = string.length;
 			var ret:Vector.<String> = new Vector.<String>();
 			var pos:int=0;
@@ -184,7 +184,7 @@ package org.tbyrne.siteStream.util
 							lastOpen = open.pop();
 							break;
 						case seperator:
-							if(!open.length){
+							if(!open.length && !lastOpen){
 								ret.push(string.substring(itemStart,pos));
 								itemStart = pos+1;
 							}

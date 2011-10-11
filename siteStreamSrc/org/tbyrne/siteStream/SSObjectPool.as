@@ -26,11 +26,11 @@ package org.tbyrne.siteStream
 		private var _pool:Array;
 		
 		
-		public function doesMatch(propDetails:PropDetails):Boolean{
+		public function doesMatch(type:Class):Boolean{
 			if(_class==null){
 				_class = ReflectionUtils.getClassByName(_classpath);
 			}
-			return (propDetails.type==_class);
+			return (type==_class);
 		}
 		public function create():*{
 			if(_classpath==null){
